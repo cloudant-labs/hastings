@@ -12,7 +12,7 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
                   ,#db{name=DbName}, DDoc) ->
     QueryArgs = #index_query_args{
         q = Query,
-        include_docs = _IncludeDocs
+        include_docs = IncludeDocs
     } = parse_index_params(Req),
     case Query of
         undefined ->
@@ -21,10 +21,24 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
         _ ->
             ok
     end,
+    
     case hastings_fabric_search:go(DbName, DDoc, IndexName, QueryArgs) of
-    {ok, Bookmark0, TotalHits, _Hits0} ->
-        Hits = [todo],
+    {ok, Bookmark0, TotalHits, Hits0} ->
         Bookmark = hastings_fabric_search:pack_bookmark(Bookmark0),
+        Hits = [
+            begin
+                case IncludeDocs of 
+                true ->
+                    Body = case fabric:open_doc(DbName, Id, []) of 
+                    {ok, Doc} -> Doc#doc.body;
+                    {not_found, _} -> null
+                    end,
+                    {[{id, Id}, {doc, Body}]};
+                false ->
+                    {[{id, Id}]}
+                end 
+            end || {Id, _} <- Hits0
+        ],
         send_json(Req, 200, {[
             {total_rows, TotalHits},
             {bookmark, Bookmark},
@@ -33,6 +47,7 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
     {error, Reason} ->
         send_error(Req, Reason)
     end;
+
 handle_search_req(Req, _Db, _DDoc) ->
     send_method_not_allowed(Req, "GET").
 
@@ -76,8 +91,6 @@ validate_index_query(include_docs, Value, Args) ->
     Args#index_query_args{include_docs=Value};
 validate_index_query(bookmark, Value, Args) ->
     Args#index_query_args{bookmark=Value};
-validate_index_query(sort, Value, Args) ->
-    Args#index_query_args{sort=Value};
 validate_index_query(extra, _Value, Args) ->
     Args.
 
@@ -89,8 +102,6 @@ parse_index_param("query", Value) ->
     [{q, ?l2b(Value)}];
 parse_index_param("bookmark", Value) ->
     [{bookmark, ?l2b(Value)}];
-parse_index_param("sort", Value) ->
-    [{sort, ?JSON_DECODE(Value)}];
 parse_index_param("limit", Value) ->
     [{limit, parse_positive_int_param(Value)}];
 parse_index_param("stale", "ok") ->

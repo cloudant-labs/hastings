@@ -11,8 +11,7 @@
 
 -record(state, {
     limit,
-    sort,
-    top_docs,
+    docs,
     counters
 }).
 
@@ -49,19 +48,20 @@ go(DbName, DDoc, IndexName, QueryArgs) ->
 
 go(QueryArgs, Counters, Bookmark) ->
     {Workers, _} = lists:unzip(Counters),
-    #index_query_args{limit = Limit, sort = Sort} = QueryArgs,
+    #index_query_args{limit = Limit} = QueryArgs,
     State = #state{
         limit = Limit,
-        sort = Sort,
-        top_docs = #top_docs{total_hits=0,hits=[]},
+        docs = #docs{total_hits=0,hits=[]},
         counters = Counters
      },
     RexiMon = fabric_util:create_monitors(Workers),
     try rexi_utils:recv(Workers, #shard.ref, fun handle_message/3,
         State, infinity, 1000 * 60 * 60) of
-    {ok, #state{top_docs=#top_docs{total_hits=TotalHits, hits=Hits}}} ->
-        Bookmark1 = create_bookmark(Sort, Bookmark, Hits),
-        {ok, Bookmark1, TotalHits, element(1, lists:unzip(Hits))};
+    {ok, #state{docs=#docs{total_hits=TotalHits, hits=Hits}}} ->
+        Bookmark1 = create_bookmark(Bookmark, Hits),
+        {ok, Bookmark1, TotalHits, Hits};
+    {ok, _} ->
+        {ok, Bookmark, 0, []};
     {error, Reason} ->
         {error, Reason}
     after
@@ -77,8 +77,8 @@ handle_message({rexi_DOWN, _, {_, NodeRef}, _}, _, State) ->
         {error, {nodedown, <<"progress not possible">>}}
     end;
 
-handle_message({ok, #top_docs{hits=Hits}=NewTopDocs0}, Shard, #state{top_docs=TopDocs, limit=Limit, sort=Sort}=State) ->
-    NewTopDocs = NewTopDocs0#top_docs{hits=[{Hit,Shard} || Hit <- Hits]},
+handle_message({ok, #docs{hits=Hits}=NewDocs0}, Shard, #state{docs=Docs, limit=Limit}=State) ->
+    NewDocs = NewDocs0#docs{hits=[{Hit,Shard} || Hit <- Hits]},
     case fabric_dict:lookup_element(Shard, State#state.counters) of
     undefined ->
         %% already heard from someone else in this range
@@ -86,11 +86,13 @@ handle_message({ok, #top_docs{hits=Hits}=NewTopDocs0}, Shard, #state{top_docs=To
     nil ->
         C1 = fabric_dict:store(Shard, ok, State#state.counters),
         C2 = fabric_view:remove_overlapping_shards(Shard, C1),
-        MergedTopDocs = merge_top_docs(TopDocs, NewTopDocs, Limit, Sort),
+        
+        MergedDocs = merge_docs(Docs, NewDocs, Limit),
         State1 = State#state{
             counters=C2,
-            top_docs=MergedTopDocs
+            docs=MergedDocs
         },
+
         case fabric_dict:any(nil, C2) of
         true ->
             {ok, State1};
@@ -126,26 +128,10 @@ get_shards(DbName, #index_query_args{stale=false}) ->
 find_replacement_shards(#shard{range=Range}, AllShards) ->
     [Shard || Shard <- AllShards, Shard#shard.range =:= Range].
 
-merge_top_docs(#top_docs{total_hits=TotalA, hits=HitsA}, #top_docs{total_hits=TotalB, hits=HitsB}, Limit, Sort) ->
+merge_docs(#docs{total_hits=TotalA, hits=HitsA}, #docs{total_hits=TotalB, hits=HitsB}, Limit) ->
     MergedTotal = TotalA + TotalB,
-    MergedHits = lists:sublist(lists:sort(fun(A, B) -> sort_top_docs(Sort, A, B) end, HitsA ++ HitsB), Limit),
-    #top_docs{total_hits=MergedTotal, hits=MergedHits}.
-
-sort_top_docs(relevance, A, B) ->
-    sort_top_docs2([<<"-">>, <<"">>], A, B);
-sort_top_docs(Sort, A, B) when is_binary(Sort) ->
-    sort_top_docs2([Sort, <<"">>], A, B);
-sort_top_docs(Sort, A, B) when is_list(Sort) ->
-    sort_top_docs2(Sort ++ [<<"">>], A, B).
-
-sort_top_docs2([<<"-",_/binary>>|_], {#hit{order=[A|_]},_}, {#hit{order=[B|_]},_}) when A =/= B ->
-    A > B;
-sort_top_docs2([_|_], {#hit{order=[A|_]},_}, {#hit{order=[B|_]},_}) when A =/= B ->
-    A < B;
-sort_top_docs2([], {_,#shard{name=A}}, {_,#shard{name=B}}) -> % arbitrary tie-break
-    A =< B;
-sort_top_docs2([_|Rest], {#hit{order=[_|RestA]}=HitA,ShardA}, {#hit{order=[_|RestB]}=HitB,ShardB}) ->
-    sort_top_docs2(Rest, {HitA#hit{order=RestA}, ShardA}, {HitB#hit{order=RestB}, ShardB}).
+    MergedHits = lists:sublist(HitsA ++ HitsB, Limit),
+    #docs{total_hits=MergedTotal, hits=MergedHits}.
 
 pack_bookmark(nil) ->
     null;
@@ -179,13 +165,9 @@ unpack_bookmark(DbName, #index_query_args{bookmark=Packed}) ->
         end
     end, binary_to_term(couch_util:decodeBase64Url(Packed))).
 
-create_bookmark(_Sort, Bookmark, []) ->
+create_bookmark(Bookmark, []) ->
     Bookmark;
-create_bookmark(relevance, Bookmark, [{#hit{order=[Score, Doc]}, Shard}|Rest]) ->
-    B1 = fabric_dict:store(Shard, {Score, Doc}, Bookmark),
+create_bookmark(Bookmark, [{Doc, Shard}|Rest]) ->
+    B1 = fabric_dict:store(Shard, Doc, Bookmark),
     B2 = fabric_view:remove_overlapping_shards(Shard, B1),
-    create_bookmark(relevance, B2, Rest);
-create_bookmark(Sort, Bookmark, [{#hit{order=Order}, Shard}|Rest]) ->
-    B1 = fabric_dict:store(Shard, Order, Bookmark),
-    B2 = fabric_view:remove_overlapping_shards(Shard, B1),
-    create_bookmark(Sort, B2, Rest).
+    create_bookmark(B2, Rest).

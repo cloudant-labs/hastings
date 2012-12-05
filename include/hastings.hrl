@@ -6,7 +6,6 @@
     def_lang,
     crs,
     name,
-    idx,
     sig=nil
 }).
 
@@ -15,16 +14,11 @@
     limit=25,
     stale=false,
     include_docs=false,
-    bookmark=nil,
-    sort=relevance
+    bookmark=nil
 }).
 
--record(top_docs, {
+-record(docs, {
     update_seq,
     total_hits,
     hits
-}).
--record(hit, {
-    order,
-    fields
 }).

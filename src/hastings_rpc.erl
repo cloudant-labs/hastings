@@ -7,7 +7,7 @@
 -import(couch_query_servers, [get_os_process/1, ret_os_process/1, proc_prompt/2]).
 
 % public api.
--export([search/4, info/3]).
+-export([search/4, info/3, cleanup/1, cleanup/2]).
 
 search(DbName, DDoc, IndexName, QueryArgs) ->
     erlang:put(io_priority, {interactive, DbName}),
@@ -49,6 +49,13 @@ info(DbName, DDoc, IndexName) ->
             rexi:reply(Error)
     end.
 
+cleanup(DbName) ->
+    % TODO
+    ok.        
+
+cleanup(DbName, ActiveSigs) ->
+    % TODO
+    ok.
 get_or_create_db(DbName, Options) ->
     case couch_db:open_int(DbName, Options) of
     {not_found, no_db_file} ->

@@ -53,27 +53,23 @@ update(IndexPid, Index) ->
         couch_db:close(Db)
     end.
 
-load_docs(FDI, _, {I, _IndexPid, _Db, _Proc, Total, _LastCommitTime}=_Acc) ->
+load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
     couch_task_status:update([{changes_done, I}, {progress, (I * 100) div Total}]),
     DI = couch_doc:to_doc_info(FDI),
-    ?LOG_ERROR("DI ~p~n", [DI]),
-    {ok, 0, []}.
-    % #doc_info{id=Id, high_seq=Seq, revs=[#rev_info{deleted=Del}|_]} = DI,
-    % case Del of
-    %     true ->
-    %         ok = clouseau_rpc:delete(IndexPid, Id);
-    %     false ->
-    %         {ok, Doc} = couch_db:open_doc(Db, DI, []),
-    %         Json = couch_doc:to_json_obj(Doc, []),
-    %         [Fields|_] = proc_prompt(Proc, [<<"index_doc">>, Json]),
-    %         Fields1 = [list_to_tuple(Field) || Field <- Fields],
-    %         ok = clouseau_rpc:update(IndexPid, Id, Fields1)
-    % end,
-    % %% Force a commit every minute
-    % case timer:now_diff(Now = now(), LastCommitTime) >= 60000000 of
-    %     true ->
-    %         ok = clouseau_rpc:commit(IndexPid, Seq),
-    %         {ok, {I+1, IndexPid, Db, Proc, Total, Now}};
-    %     false ->
-    %         {ok, setelement(1, Acc, I+1)}
-    % end.
+    #doc_info{id=Id, revs=[#rev_info{deleted=Del}|_]} = DI,
+    % TODO parse revs to see if geometry has changed as spatial index id
+    % is a composite of doc id and geom, for now assumed document is fixed
+    {ok, Doc} = couch_db:open_doc(Db, DI, []),
+    Json = couch_doc:to_json_obj(Doc, []),
+    case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
+    [[]] ->
+        ok;
+    [[[Geom | _Options]]] ->
+        case Del of 
+            true ->
+                ok = hastings_index:delete(IndexPid, Id, Geom);
+            false ->
+                ok = hastings_index:update(IndexPid, Id, Geom)
+        end
+    end,
+    {ok, setelement(1, Acc, I + 1)}.

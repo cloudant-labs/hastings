@@ -65,8 +65,8 @@ handle_call({open_error, DbName, Sig, Error}, _From, State) ->
     ets:delete(?BY_SIG, {DbName, Sig}),
     {reply, ok, State}.
 
-handle_cast({cleanup, _DbName}, State) ->
-    % clouseau_rpc:cleanup(DbName),
+handle_cast({cleanup, DbName}, State) ->
+    hastings_rpc:cleanup(DbName),
     {noreply, State}.
 
 handle_info({'EXIT', FromPid, Reason}, State) ->

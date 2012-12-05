@@ -11,9 +11,9 @@
 
 go(DbName) ->
     {ok, DesignDocs} = fabric:design_docs(DbName),
-    _ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1,
+    ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1,
         [couch_doc:from_json_obj(DD) || DD <- DesignDocs])),
-%    clouseau_rpc:cleanup(DbName, ActiveSigs),
+    hastings_rpc:cleanup(DbName, ActiveSigs),
     ok.
 
 active_sigs(#doc{body={Fields}}=Doc) ->
