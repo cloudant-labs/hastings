@@ -13,6 +13,7 @@ go(DbName) ->
     {ok, DesignDocs} = fabric:design_docs(DbName),
     ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1,
         [couch_doc:from_json_obj(DD) || DD <- DesignDocs])),
+    
     hastings_rpc:cleanup(DbName, ActiveSigs),
     ok.
 

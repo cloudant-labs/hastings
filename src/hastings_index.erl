@@ -115,13 +115,11 @@ handle_call({new_seq, Seq}, _From,
     put_seq(FileName, Seq),
     {reply, {ok, updated}, State};
 
-handle_call(info, _From, State) ->
-    % TODO support arbitrary SRS and add disk_size, doc_count 
-    % and doc_del_count functions to the 
-    % C API of libspatialindex, using intersection is a hack
-    % {ok, [{disk_size, }, {doc_count, }, {doc_del_count, }]}
-    {ok, DocCount} = index_intersects_count(State#index_h, 
-                                              {-180, -90}, {180, 90}),
+handle_call(info, _From, State = #state{index_h=Idx}) ->
+    % get bounds
+    {ok, [Min, Max]} = erl_spatial:index_bounds(Idx),
+    {ok, DocCount} = erl_spatial:index_intersects_count(Idx, 
+                                              Min, Max),
     {reply, [{ok, [{doc_count, DocCount}]}], State};
 
 handle_call({delete, Id, Geom}, _From, State = #state{index_h=Idx}) ->
@@ -130,38 +128,15 @@ handle_call({delete, Id, Geom}, _From, State = #state{index_h=Idx}) ->
 handle_call({update, Id, Geom}, _From, State = #state{index_h=Idx}) ->
     {reply, erl_spatial:index_insert(Idx, Id, Geom), State}.
 
-handle_cast({cleanup, DbName}, State = #state{index_h=Idx, index=#index{sig=Sig}}) ->
+handle_cast({cleanup, DbName}, State = #state{index_h=Idx}) ->
+    % TODO add test for cleanup
     erl_spatial:index_destroy(Idx),
-    FileName = get_filename(DbName, Sig), 
-    file:delete(FileName),
-    file:delete(<<FileName/binary, ".geopriv">>),
-    {noreply, State};
+    hastings_rpc:cleanup(DbName),
+    handle_cast({cleanup, DbName, []}, State);
 
 handle_cast({cleanup, DbName, ActiveSigs}, State) ->
     % clean up indexes for for this DbName, but not active sigs    
-    Path = get_path(DbName),
-    GeoIndexes = case file:list_dir(Path) of 
-        {ok, FileList} ->
-            lists:filter(fun(F) ->
-              case filename:extension(F) of 
-                  <<".geo">> ->
-                      IdxName = filename:basename(F, <<".geo">>),
-                      case lists:member(IdxName, ActiveSigs) of
-                          true ->
-                              false;
-                          _ ->
-                              true 
-                      end;
-                  <<".geopriv">> ->
-                      true;
-                  _ ->
-                      false
-              end
-            end, FileList);
-        _ ->
-          ok 
-    end,    
-
+    hastings_rpc:cleanup(DbName, ActiveSigs),
     {noreply, State};
 
 handle_cast(_Msg, State) ->

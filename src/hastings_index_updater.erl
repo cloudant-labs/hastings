@@ -59,6 +59,7 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
     #doc_info{id=Id, revs=[#rev_info{deleted=Del}|_]} = DI,
     % TODO parse revs to see if geometry has changed as spatial index id
     % is a composite of doc id and geom, for now assumed document is fixed
+    % Preference would be to override this in erl_spatial and libspatialindex
     {ok, Doc} = couch_db:open_doc(Db, DI, []),
     Json = couch_doc:to_json_obj(Doc, []),
     case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of

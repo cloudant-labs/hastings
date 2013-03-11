@@ -50,12 +50,37 @@ info(DbName, DDoc, IndexName) ->
     end.
 
 cleanup(DbName) ->
-    % TODO
-    ok.        
+    cleanup(DbName, []).        
 
 cleanup(DbName, ActiveSigs) ->
-    % TODO
+     % TODO test whether erl_spatial needs index released first
+
+    % get all geo indexes for this database
+    % leave active indexes
+    {ok, DesignDocs} = fabric:design_docs(DbName),
+    ActiveSigs = lists:map(fun(#doc{id = GroupId}) ->
+        {ok, Info} = fabric:get_view_group_info(DbName, GroupId),
+        binary_to_list(couch_util:get_value(signature, Info))
+    end, [couch_doc:from_json_obj(DD) || DD <- DesignDocs]),
+
+    % list all .geo and .geopriv
+    FileList = filelib:wildcard([config:get("couchdb", "view_index_dir"),
+             couch_util:to_list(DbName), "*.geo*"]),
+
+    % this can be slow for now, speed up later 
+    % lists:member is slow
+    lists:foreach(fun(Sig) ->
+        % sig should be the name of each Sig after path is removed
+        ASig = filename:rootname(filename:basename(Sig)),
+        case lists:member(ASig, ActiveSigs) of
+            true ->
+                file:delete(Sig);
+            _ ->
+                ok
+        end
+    end, FileList),
     ok.
+
 get_or_create_db(DbName, Options) ->
     case couch_db:open_int(DbName, Options) of
     {not_found, no_db_file} ->
