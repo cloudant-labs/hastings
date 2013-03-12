@@ -53,8 +53,6 @@ cleanup(DbName) ->
     cleanup(DbName, []).        
 
 cleanup(DbName, ActiveSigs) ->
-     % TODO test whether erl_spatial needs index released first
-
     % get all geo indexes for this database
     % leave active indexes
     {ok, DesignDocs} = fabric:design_docs(DbName),
@@ -62,6 +60,10 @@ cleanup(DbName, ActiveSigs) ->
         {ok, Info} = fabric:get_view_group_info(DbName, GroupId),
         binary_to_list(couch_util:get_value(signature, Info))
     end, [couch_doc:from_json_obj(DD) || DD <- DesignDocs]),
+
+
+    % get all indexes for database
+
 
     % list all .geo and .geopriv
     FileList = filelib:wildcard([config:get("couchdb", "view_index_dir"),
@@ -73,8 +75,14 @@ cleanup(DbName, ActiveSigs) ->
         % sig should be the name of each Sig after path is removed
         ASig = filename:rootname(filename:basename(Sig)),
         case lists:member(ASig, ActiveSigs) of
-            true ->
-                file:delete(Sig);
+            false ->
+                % get the erl_spatial index and destory it
+                case hastings_index_manager:get_index(DbName, Sig) of 
+                    {ok, Pid} ->
+                        hastings_index:delete_index(Pid);
+                    _ ->
+                        ok
+                end;
             _ ->
                 ok
         end

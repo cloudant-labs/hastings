@@ -9,7 +9,7 @@
 
 % public api.
 -export([start_link/2, design_doc_to_index/2, 
-        await/2, search/2, info/1, update_seq/2, delete/3, update/3]).
+        await/2, search/2, info/1, update_seq/2, delete/3, delete_index/1, update/3]).
 
 % gen_server api.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -43,6 +43,9 @@ update_seq(Pid, NewCurrSeq) ->
 
 delete(Pid, Id, Geom) ->
   gen_server:call(Pid, {delete, Id, Geom}, infinity).
+
+delete_index(Pid) ->
+  gen_server:call(Pid, delete_index, infinity).
 
 update(Pid, Id, Geom) ->
   gen_server:call(Pid, {update, Id, Geom}, infinity).
@@ -111,7 +114,7 @@ handle_call({search, QueryArgs}, _From, State = #state{index_h=Idx}) ->
 
 handle_call({new_seq, Seq}, _From, 
         #state{index=#index{dbname=DbName, sig=Sig}}=State) ->
-    FileName = <<DbName/binary,"/",Sig/binary, ".geopriv">>,
+    FileName = get_priv_filename(DbName/binary, Sig/binary),
     put_seq(FileName, Seq),
     {reply, {ok, updated}, State};
 
@@ -125,19 +128,16 @@ handle_call(info, _From, State = #state{index_h=Idx}) ->
 handle_call({delete, Id, Geom}, _From, State = #state{index_h=Idx}) ->
     {reply, erl_spatial:index_delete(Idx, Id, Geom), State};
 
+handle_call(delete_index, _From, #state{index_h={dbname=DbName,
+                                                 sig=Sig} = Idx}) ->
+    erl_spatial:index_destroy(Idx),
+    % delete geo priv as well
+    PrivFileName = get_priv_filename(DbName, Sig),
+    file:delete(PrivFileName),
+    {reply, ok};
+
 handle_call({update, Id, Geom}, _From, State = #state{index_h=Idx}) ->
     {reply, erl_spatial:index_insert(Idx, Id, Geom), State}.
-
-handle_cast({cleanup, DbName}, State = #state{index_h=Idx}) ->
-    % TODO add test for cleanup
-    erl_spatial:index_destroy(Idx),
-    hastings_rpc:cleanup(DbName),
-    handle_cast({cleanup, DbName, []}, State);
-
-handle_cast({cleanup, DbName, ActiveSigs}, State) ->
-    % clean up indexes for for this DbName, but not active sigs    
-    hastings_rpc:cleanup(DbName, ActiveSigs),
-    {noreply, State};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -204,7 +204,7 @@ open_index(DbName, #index{sig=Sig, crs=CRS}) ->
     ok ->
         case erl_spatial:index_create(FileName, CRS) of 
           {ok, Idx} ->
-            case get_seq(<<FileName/binary, ".geopriv">>) of
+            case get_seq(get_priv_filename(DbName, Sig)) of
               {ok, Seq} ->
                 {ok, self(), Idx, Seq};
               Error ->
@@ -224,9 +224,11 @@ get_path(DbName) ->
 get_filename(DbName, Sig) ->
     filename:join([get_path(DbName), <<Sig/binary, ".geo">>]). 
 
+get_priv_filename(DbName, Sig) ->
+  FileName = get_filename(DbName, Sig),
+  <<FileName/binary, ".geopriv">>.
+
 get_seq(FileName) ->
-    % twig:log(notice, "DEV MODE - Forcing sequence to be zero~n", []),
-    % {ok, 0}.
     case file:consult(FileName) of 
         {ok, Terms} ->
             {ok, proplists:get_value(Terms, seq, 0)};
