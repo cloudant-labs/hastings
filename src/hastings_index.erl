@@ -92,19 +92,16 @@ handle_call({await, RequestSeq}, From, #state{waiting_list=WaitList}=State) ->
 
 handle_call({search, QueryArgs}, _From, State = #state{index_h=Idx}) ->
     #index_query_args{
-        q = Query,
+        bbox = BBox,
         limit = _Limit,
-        stale = _Stale,
-        bookmark = _Bookmark
+        stale = _Stale
     } = QueryArgs,
-    % TODO paging / bookmarks
-    % for now simple bbox only
-    Reply = case Query of 
-      <<"bbox(", Rem/binary>> ->
-          [MinX, MinY, MaxX, MaxY | _] = string:tokens(?b2l(Rem), ",)"),
+    % TODO paging for now bbox only
+    Reply = case BBox of 
+      [MinX, MinY, MaxX, MaxY] ->
           {ok, Hits} = erl_spatial:index_intersects(Idx, 
-            {list_to_float(MinX), list_to_float(MinY)},
-            {list_to_float(MaxX), list_to_float(MaxY)}            
+            {MinX, MinY},
+            {MaxX, MaxY}            
           ),
           {ok, #docs{total_hits=length(Hits), hits=Hits}};
       _ ->
@@ -114,7 +111,7 @@ handle_call({search, QueryArgs}, _From, State = #state{index_h=Idx}) ->
 
 handle_call({new_seq, Seq}, _From, 
         #state{index=#index{dbname=DbName, sig=Sig}}=State) ->
-    FileName = get_priv_filename(DbName/binary, Sig/binary),
+    FileName = get_priv_filename(DbName, Sig),
     put_seq(FileName, Seq),
     {reply, {ok, updated}, State};
 
@@ -231,7 +228,7 @@ get_priv_filename(DbName, Sig) ->
 get_seq(FileName) ->
     case file:consult(FileName) of 
         {ok, Terms} ->
-            {ok, proplists:get_value(Terms, seq, 0)};
+            {ok, proplists:get_value(seq, Terms, 0)};
         _ ->
             put_seq(FileName, 0),
             {ok, 0}

@@ -1,12 +1,12 @@
 import json
 import requests
 
-dbname = "countries"
-countries = "data/countries.json"
+dbname = "colorado_skiing"
+areas = "data/ski_areas.json"
 baseUrl = "http://localhost:15984"
 dbUrl = baseUrl + "/" + dbname
 headers = {"content-type": "application/json"}
-indexName = "countries"
+indexName = "ski_areas"
 designDocId = "_design/SpatialView"
 
 designDoc = {"_id" : designDocId,
@@ -24,25 +24,26 @@ designDoc = {"_id" : designDocId,
 # # clean up any previous runs
 requests.delete(dbUrl)
 requests.put(dbUrl)
+print "DB PUT %s" % (dbUrl)
 requests.post(dbUrl, data=json.dumps(designDoc), headers=headers)
 
 # parse json feature collection
-json_data = open(countries)
+json_data = open(areas)
 data = json.load(json_data)
 
 for feature in data["features"]:
 	Id = feature["id"]
 	# delete feature type and duplicate id
 	del feature["id"]
-	del feature["type"]
-	feature["_id"] = Id
+	feature["_id"] = str(Id)
+	print json.dumps(feature)
 	requests.post(dbUrl, data=json.dumps(feature), headers=headers)
 
 json_data.close()
 
-# trigger the index and query for the uk
+# trigger the index and query for CO
 indexUrl = "%s/%s/_geo/%s?bbox=%f,%f,%f,%f" % \
 				(dbUrl, designDocId, indexName, \
-					0, 51, 0, 51)
+					-107.70996093749999,38.71123253895224,-104.534912109375,40.613952441166596)
 resp = requests.get(indexUrl)
 print resp.json

@@ -6,43 +6,52 @@
 -export([handle_search_req/3, handle_info_req/3, handle_cleanup_req/2]).
 -include("hastings.hrl").
 -include_lib("couch/include/couch_db.hrl").
--import(chttpd, [send_method_not_allowed/2, send_json/2, send_json/3, send_error/2]).
+-import(chttpd, [send_method_not_allowed/2, send_json/2, send_json/3,
+                 send_response/4, send_error/2]).
 
 handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
                   ,#db{name=DbName}, DDoc) ->
+    % TODO change this to stream response as the hits return
+    % match query args against open search / leaflet string
     QueryArgs = #index_query_args{
-        q = Query,
+        bbox = BBox,
         include_docs = IncludeDocs
     } = parse_index_params(Req),
-    case Query of
+    % TODO remove this requirement to match radius etc
+    case BBox of
         undefined ->
-            Msg = <<"Query must include a 'q' or 'query' argument">>,
+            Msg = <<"Query must include a 'bbox' argument">>,
             throw({query_parse_error, Msg});
         _ ->
             ok
     end,
-    
+    % look at geojson spec to see how to add TotalHits
     case hastings_fabric_search:go(DbName, DDoc, IndexName, QueryArgs) of
-    {ok, Bookmark0, TotalHits, Hits0} ->
-        Bookmark = hastings_fabric_search:pack_bookmark(Bookmark0),
+    {ok, _TotalHits, Hits0} ->
         Hits = [
             begin
                 case IncludeDocs of 
                 true ->
                     Body = case fabric:open_doc(DbName, Id, []) of 
-                    {ok, Doc} -> Doc#doc.body;
+                    {ok, Doc} -> 
+                        {Resp} = Doc#doc.body,
+                        Resp;
                     {not_found, _} -> null
                     end,
-                    {[{id, Id}, {doc, Body}]};
+                    case lists:keyfind(<<"type">>, 1, Body) of 
+                    false -> 
+                        {[{type, <<"Feature">>}, {id, Id} | Body]};
+                    _ ->
+                        {[{id, Id} | Body]}
+                    end;
                 false ->
                     {[{id, Id}]}
                 end 
             end || {Id, _} <- Hits0
         ],
         send_json(Req, 200, {[
-            {total_rows, TotalHits},
-            {bookmark, Bookmark},
-            {rows, Hits}
+            {type, <<"FeatureCollection">>},
+            {features, Hits}
         ]});
     {error, Reason} ->
         send_error(Req, Reason)
@@ -81,27 +90,25 @@ parse_index_params(IndexParams) ->
         validate_index_query(K, V, Args2)
     end, Args, IndexParams).
 
-validate_index_query(q, Value, Args) ->
-    Args#index_query_args{q=Value};
+validate_index_query(bbox, Value, Args) ->
+    Args#index_query_args{bbox=Value};
 validate_index_query(stale, Value, Args) ->
     Args#index_query_args{stale=Value};
 validate_index_query(limit, Value, Args) ->
     Args#index_query_args{limit=Value};
 validate_index_query(include_docs, Value, Args) ->
     Args#index_query_args{include_docs=Value};
-validate_index_query(bookmark, Value, Args) ->
-    Args#index_query_args{bookmark=Value};
 validate_index_query(extra, _Value, Args) ->
     Args.
 
 parse_index_param("", _) ->
     [];
-parse_index_param("q", Value) ->
-    [{q, ?l2b(Value)}];
-parse_index_param("query", Value) ->
-    [{q, ?l2b(Value)}];
-parse_index_param("bookmark", Value) ->
-    [{bookmark, ?l2b(Value)}];
+parse_index_param("bbox", Value) ->
+    [MinX, MinY, MaxX, MaxY] = string:tokens(Value, ","),
+    [{bbox, [parse_float_param(MinX),
+             parse_float_param(MinY),
+             parse_float_param(MaxX),
+             parse_float_param(MaxY)]}];
 parse_index_param("limit", Value) ->
     [{limit, parse_positive_int_param(Value)}];
 parse_index_param("stale", "ok") ->
@@ -114,7 +121,6 @@ parse_index_param(Key, Value) ->
     [{extra, {Key, Value}}].
 
 %% VV copied from chttpd_view.erl
-
 parse_bool_param("true") -> true;
 parse_bool_param("false") -> false;
 parse_bool_param(Val) ->
@@ -129,6 +135,12 @@ parse_int_param(Val) ->
         Msg = io_lib:format("Invalid value for integer parameter: ~p", [Val]),
         throw({query_parse_error, ?l2b(Msg)})
     end.
+
+parse_float_param(Val) ->
+    case string:to_float(Val) of
+    {error,no_float} -> list_to_integer(Val);
+    {F,_Rest} -> F
+    end.    
 
 parse_positive_int_param(Val) ->
     MaximumVal = list_to_integer(

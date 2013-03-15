@@ -1,0 +1,130 @@
+{
+"type": "FeatureCollection",
+                                                                                
+"features": [
+{ "type": "Feature", "id": 0, "properties": { "Name": "Purgatory", "Status": "Open", "XCOORD": -107.834125, "YCOORD": 37.627647 }, "geometry": { "type": "Point", "coordinates": [ -107.834125418149881, 37.627647469353214, 0.0 ] } }
+,
+{ "type": "Feature", "id": 1, "properties": { "Name": "Silverton", "Status": "Open", "XCOORD": -107.678427, "YCOORD": 37.818379 }, "geometry": { "type": "Point", "coordinates": [ -107.678426891573039, 37.818378591170223, 0.0 ] } }
+,
+{ "type": "Feature", "id": 2, "properties": { "Name": "Telluride", "Status": "Open", "XCOORD": -107.832323, "YCOORD": 37.929348 }, "geometry": { "type": "Point", "coordinates": [ -107.832323367954288, 37.929347586759022, 0.0 ] } }
+,
+{ "type": "Feature", "id": 3, "properties": { "Name": "Sunlight", "Status": "Open", "XCOORD": -107.339061, "YCOORD": 39.394858 }, "geometry": { "type": "Point", "coordinates": [ -107.339061101445665, 39.394857620249908, 0.0 ] } }
+,
+{ "type": "Feature", "id": 4, "properties": { "Name": "Snowmass", "Status": "Open", "XCOORD": -106.966438, "YCOORD": 39.173806 }, "geometry": { "type": "Point", "coordinates": [ -106.966437507932639, 39.173805692808273, 0.0 ] } }
+,
+{ "type": "Feature", "id": 5, "properties": { "Name": "Buttermilk Mtn", "Status": "Open", "XCOORD": -106.877208, "YCOORD": 39.18261 }, "geometry": { "type": "Point", "coordinates": [ -106.877207720214003, 39.182609698529845, 0.0 ] } }
+,
+{ "type": "Feature", "id": 6, "properties": { "Name": "Aspen Highlands", "Status": "Open", "XCOORD": -106.871735, "YCOORD": 39.145966 }, "geometry": { "type": "Point", "coordinates": [ -106.871734959900593, 39.145965999040058, 0.0 ] } }
+,
+{ "type": "Feature", "id": 7, "properties": { "Name": "Aspen Mtn", "Status": "Open", "XCOORD": -106.822718, "YCOORD": 39.155484 }, "geometry": { "type": "Point", "coordinates": [ -106.822718063180488, 39.155483843063379, 0.0 ] } }
+,
+{ "type": "Feature", "id": 8, "properties": { "Name": "Beaver Creek", "Status": "Open", "XCOORD": -106.509581, "YCOORD": 39.569034 }, "geometry": { "type": "Point", "coordinates": [ -106.50958099481322, 39.569034165876687, 0.0 ] } }
+,
+{ "type": "Feature", "id": 9, "properties": { "Name": "Vail Resort", "Status": "Open", "XCOORD": -106.376569, "YCOORD": 39.619479 }, "geometry": { "type": "Point", "coordinates": [ -106.376569124587306, 39.619478739200289, 0.0 ] } }
+,
+{ "type": "Feature", "id": 10, "properties": { "Name": "Copper Mountain", "Status": "Open", "XCOORD": -106.166701, "YCOORD": 39.474094 }, "geometry": { "type": "Point", "coordinates": [ -106.166700663873073, 39.474093671744058, 0.0 ] } }
+,
+{ "type": "Feature", "id": 11, "properties": { "Name": "Breckenridge Ski Area", "Status": "Open", "XCOORD": -106.079136, "YCOORD": 39.459103 }, "geometry": { "type": "Point", "coordinates": [ -106.079136498858517, 39.459103067407327, 0.0 ] } }
+,
+{ "type": "Feature", "id": 12, "properties": { "Name": "Keystone Resort", "Status": "Open", "XCOORD": -105.949185, "YCOORD": 39.608595 }, "geometry": { "type": "Point", "coordinates": [ -105.949184938385969, 39.608594927917352, 0.0 ] } }
+,
+{ "type": "Feature", "id": 13, "properties": { "Name": "Arapahoe Basin", "Status": "Open", "XCOORD": -105.874503, "YCOORD": 39.626855 }, "geometry": { "type": "Point", "coordinates": [ -105.874502852357111, 39.626855068318363, 0.0 ] } }
+,
+{ "type": "Feature", "id": 14, "properties": { "Name": "Loveland Ski Area", "Status": "Open", "XCOORD": -105.909957, "YCOORD": 39.674206 }, "geometry": { "type": "Point", "coordinates": [ -105.909956821343982, 39.674206342334386, 0.0 ] } }
+,
+{ "type": "Feature", "id": 15, "properties": { "Name": "Winter Park", "Status": "Open", "XCOORD": -105.769807, "YCOORD": 39.859566 }, "geometry": { "type": "Point", "coordinates": [ -105.769806568100577, 39.859566354688567, 0.0 ] } }
+,
+{ "type": "Feature", "id": 16, "properties": { "Name": "Eldora", "Status": "Open", "XCOORD": -105.595868, "YCOORD": 39.938089 }, "geometry": { "type": "Point", "coordinates": [ -105.595867968574382, 39.938088567880968, 0.0 ] } }
+,
+{ "type": "Feature", "id": 17, "properties": { "Name": "Sol Vista", "Status": "Open", "XCOORD": -105.893301, "YCOORD": 40.039454 }, "geometry": { "type": "Point", "coordinates": [ -105.89330059430317, 40.039453606729339, 0.0 ] } }
+,
+{ "type": "Feature", "id": 18, "properties": { "Name": "Steamboat", "Status": "Open", "XCOORD": -106.799557, "YCOORD": 40.455766 }, "geometry": { "type": "Point", "coordinates": [ -106.799556942790389, 40.455765596926646, 0.0 ] } }
+,
+{ "type": "Feature", "id": 19, "properties": { "Name": "Monarch", "Status": "Open", "XCOORD": -106.336267, "YCOORD": 38.510968 }, "geometry": { "type": "Point", "coordinates": [ -106.336266799880761, 38.510968143000824, 0.0 ] } }
+,
+{ "type": "Feature", "id": 20, "properties": { "Name": "Ski Cooper", "Status": "Open", "XCOORD": -106.286333, "YCOORD": 39.354039 }, "geometry": { "type": "Point", "coordinates": [ -106.286332542734016, 39.354038931632104, 0.0 ] } }
+,
+{ "type": "Feature", "id": 21, "properties": { "Name": "Crested Butte", "Status": "Open", "XCOORD": -106.944793, "YCOORD": 38.89936 }, "geometry": { "type": "Point", "coordinates": [ -106.944792828868302, 38.899360176265979, 0.0 ] } }
+,
+{ "type": "Feature", "id": 22, "properties": { "Name": "Powderhorn", "Status": "Open", "XCOORD": -108.151353, "YCOORD": 39.065406 }, "geometry": { "type": "Point", "coordinates": [ -108.151353445077959, 39.065406007863373, 0.0 ] } }
+,
+{ "type": "Feature", "id": 23, "properties": { "Name": "Hidden Valley - RMNP", "Status": "Closed\/Backcountry", "XCOORD": -105.655857, "YCOORD": 40.393387 }, "geometry": { "type": "Point", "coordinates": [ -105.655856620663528, 40.393387104800098, 0.0 ] } }
+,
+{ "type": "Feature", "id": 24, "properties": { "Name": "Conquistador", "Status": "Closed\/Backcountry", "XCOORD": -105.584489, "YCOORD": 38.11838 }, "geometry": { "type": "Point", "coordinates": [ -105.584488667675473, 38.118379897748817, 0.0 ] } }
+,
+{ "type": "Feature", "id": 25, "properties": { "Name": "Red Mountain", "Status": "Closed\/Backcountry", "XCOORD": -107.345405, "YCOORD": 39.532507 }, "geometry": { "type": "Point", "coordinates": [ -107.345404702867583, 39.532507026924442, 0.0 ] } }
+,
+{ "type": "Feature", "id": 26, "properties": { "Name": "Rock Creek", "Status": "Closed\/Backcountry", "XCOORD": -105.534153, "YCOORD": 40.16006 }, "geometry": { "type": "Point", "coordinates": [ -105.53415314819064, 40.160060429963927, 0.0 ] } }
+,
+{ "type": "Feature", "id": 27, "properties": { "Name": "Ski St Marys", "Status": "Closed\/Backcountry", "XCOORD": -105.644512, "YCOORD": 39.824846 }, "geometry": { "type": "Point", "coordinates": [ -105.6445118848508, 39.824845592728863, 0.0 ] } }
+,
+{ "type": "Feature", "id": 28, "properties": { "Name": "Geneva Basin", "Status": "Closed\/Backcountry", "XCOORD": -105.725605, "YCOORD": 39.567465 }, "geometry": { "type": "Point", "coordinates": [ -105.725605105659994, 39.567465244380706, 0.0 ] } }
+,
+{ "type": "Feature", "id": 29, "properties": { "Name": "Mt. Lugo", "Status": "Closed\/Backcountry", "XCOORD": -105.272327, "YCOORD": 39.54578 }, "geometry": { "type": "Point", "coordinates": [ -105.272326507529641, 39.545780440519785, 0.0 ] } }
+,
+{ "type": "Feature", "id": 30, "properties": { "Name": "Berthoud Pass", "Status": "Closed\/Backcountry", "XCOORD": -105.776292, "YCOORD": 39.797746 }, "geometry": { "type": "Point", "coordinates": [ -105.776292173722311, 39.797746351898326, 0.0 ] } }
+,
+{ "type": "Feature", "id": 31, "properties": { "Name": "Echo Mountain", "Status": "Open", "XCOORD": -105.51995, "YCOORD": 39.688051 }, "geometry": { "type": "Point", "coordinates": [ -105.51994952592824, 39.688051096161651, 0.0 ] } }
+,
+{ "type": "Feature", "id": 32, "properties": { "Name": "Battle Mountain", "Status": "Dream", "XCOORD": -106.378107, "YCOORD": 39.535904 }, "geometry": { "type": "Point", "coordinates": [ -106.378107294905618, 39.535903616085484, 0.0 ] } }
+,
+{ "type": "Feature", "id": 33, "properties": { "Name": "Meadow Mountain", "Status": "Closed\/Backcountry", "XCOORD": -106.446414, "YCOORD": 39.606506 }, "geometry": { "type": "Point", "coordinates": [ -106.446413820558178, 39.606506113414127, 0.0 ] } }
+,
+{ "type": "Feature", "id": 34, "properties": { "Name": "Cuchara", "Status": "Closed\/Backcountry", "XCOORD": -105.124856, "YCOORD": 37.34934 }, "geometry": { "type": "Point", "coordinates": [ -105.124856302852777, 37.349339725864724, 0.0 ] } }
+,
+{ "type": "Feature", "id": 35, "properties": { "Name": "Durrango Hill", "Status": "Open", "XCOORD": -107.868479, "YCOORD": 37.28323 }, "geometry": { "type": "Point", "coordinates": [ -107.868478912134805, 37.283230048846242, 0.0 ] } }
+,
+{ "type": "Feature", "id": 36, "properties": { "Name": "Seven Utes Mountain", "Status": "Dream\/Backcountry", "XCOORD": -105.93339, "YCOORD": 40.478414 }, "geometry": { "type": "Point", "coordinates": [ -105.933390493201514, 40.478414497335756, 0.0 ] } }
+,
+{ "type": "Feature", "id": 37, "properties": { "Name": "Fern Lake", "Status": "Backcountry", "XCOORD": -105.674788, "YCOORD": 40.336252 }, "geometry": { "type": "Point", "coordinates": [ -105.674788480710575, 40.336252120922509, 0.0 ] } }
+,
+{ "type": "Feature", "id": 38, "properties": { "Name": "Jones Pass", "Status": "Backcountry", "XCOORD": -105.854356, "YCOORD": 39.770162 }, "geometry": { "type": "Point", "coordinates": [ -105.854355570817461, 39.770162242775186, 0.0 ] } }
+,
+{ "type": "Feature", "id": 39, "properties": { "Name": "Wolf Creek Ski Area", "Status": "Open", "XCOORD": -106.793166, "YCOORD": 37.473057 }, "geometry": { "type": "Point", "coordinates": [ -106.793166255140108, 37.473056641492839, 0.0 ] } }
+,
+{ "type": "Feature", "id": 40, "properties": { "Name": "Wolf Creek Pass", "Status": "Backcountry", "XCOORD": -106.79843, "YCOORD": 37.484565 }, "geometry": { "type": "Point", "coordinates": [ -106.798429941879505, 37.484564533691348, 0.0 ] } }
+,
+{ "type": "Feature", "id": 41, "properties": { "Name": "Lizard Head Pass", "Status": "Closed\/Backcountry", "XCOORD": -107.906936, "YCOORD": 37.810818 }, "geometry": { "type": "Point", "coordinates": [ -107.906935665452437, 37.810817819952781, 0.0 ] } }
+,
+{ "type": "Feature", "id": 42, "properties": { "Name": "Ironton Park", "Status": "Closed\/Backcountry", "XCOORD": -107.660637, "YCOORD": 37.96024 }, "geometry": { "type": "Point", "coordinates": [ -107.660637406750183, 37.960240066885824, 0.0 ] } }
+,
+{ "type": "Feature", "id": 43, "properties": { "Name": "Coal Bank Pass", "Status": "Closed\/Backcountry", "XCOORD": -107.77645, "YCOORD": 37.699198 }, "geometry": { "type": "Point", "coordinates": [ -107.776449561375699, 37.699197580663935, 0.0 ] } }
+,
+{ "type": "Feature", "id": 44, "properties": { "Name": "Stoner Ski Area", "Status": "Closed\/Backcountry", "XCOORD": -108.320333, "YCOORD": 37.586203 }, "geometry": { "type": "Point", "coordinates": [ -108.320332914627357, 37.586203004405583, 0.0 ] } }
+,
+{ "type": "Feature", "id": 45, "properties": { "Name": "Little Annie", "Status": "Closed\/Backcountry", "XCOORD": -106.831031, "YCOORD": 39.107201 }, "geometry": { "type": "Point", "coordinates": [ -106.83103149113856, 39.107201450695889, 0.0 ] } }
+,
+{ "type": "Feature", "id": 46, "properties": { "Name": "Montezuma Basin", "Status": "Closed\/Backcountry", "XCOORD": -106.860987, "YCOORD": 39.010872 }, "geometry": { "type": "Point", "coordinates": [ -106.860986941176833, 39.01087210964814, 0.0 ] } }
+,
+{ "type": "Feature", "id": 47, "properties": { "Name": "Marble Mountain", "Status": "Closed\/Backcountry", "XCOORD": -107.186727, "YCOORD": 39.073399 }, "geometry": { "type": "Point", "coordinates": [ -107.186726813553705, 39.073398982245159, 0.0 ] } }
+,
+{ "type": "Feature", "id": 48, "properties": { "Name": "Pioneer", "Status": "Closed\/Backcountry", "XCOORD": -106.863341, "YCOORD": 38.821216 }, "geometry": { "type": "Point", "coordinates": [ -106.863340800066737, 38.821216133002231, 0.0 ] } }
+,
+{ "type": "Feature", "id": 49, "properties": { "Name": "White Pine", "Status": "Closed\/Backcountry", "XCOORD": -106.325377, "YCOORD": 38.530908 }, "geometry": { "type": "Point", "coordinates": [ -106.325377014105527, 38.530908292957378, 0.0 ] } }
+,
+{ "type": "Feature", "id": 50, "properties": { "Name": "Marshall Pass", "Status": "Backcountry", "XCOORD": -106.218016, "YCOORD": 38.393449 }, "geometry": { "type": "Point", "coordinates": [ -106.218015694865201, 38.393449322328067, 0.0 ] } }
+,
+{ "type": "Feature", "id": 51, "properties": { "Name": "Adams Rib", "Status": "Dream\/Backcountry", "XCOORD": -106.69346, "YCOORD": 39.526431 }, "geometry": { "type": "Point", "coordinates": [ -106.693459511768268, 39.526431288554875, 0.0 ] } }
+,
+{ "type": "Feature", "id": 52, "properties": { "Name": "Climax", "Status": "Backcountry", "XCOORD": -106.189374, "YCOORD": 39.36898 }, "geometry": { "type": "Point", "coordinates": [ -106.189374088083156, 39.368980146024924, 0.0 ] } }
+,
+{ "type": "Feature", "id": 53, "properties": { "Name": "Hoosier Pass", "Status": "Backcountry", "XCOORD": -106.062559, "YCOORD": 39.362105 }, "geometry": { "type": "Point", "coordinates": [ -106.062559432259505, 39.362104880204285, 0.0 ] } }
+,
+{ "type": "Feature", "id": 54, "properties": { "Name": "Peak One - Mt. Royal", "Status": "Backcountry", "XCOORD": -106.099731, "YCOORD": 39.569647 }, "geometry": { "type": "Point", "coordinates": [ -106.09973119911399, 39.569647245141851, 0.0 ] } }
+,
+{ "type": "Feature", "id": 55, "properties": { "Name": "Frisco Ski Hill", "Status": "Open", "XCOORD": -106.083185, "YCOORD": 39.575087 }, "geometry": { "type": "Point", "coordinates": [ -106.083185229721437, 39.575087015901047, 0.0 ] } }
+,
+{ "type": "Feature", "id": 56, "properties": { "Name": "Porcupine Gulch", "Status": "Backcountry", "XCOORD": -105.916819, "YCOORD": 39.626689 }, "geometry": { "type": "Point", "coordinates": [ -105.916818907336094, 39.626689285741733, 0.0 ] } }
+,
+{ "type": "Feature", "id": 57, "properties": { "Name": "Steamboat Lake Ski Area", "Status": "Closed\/Backcountry", "XCOORD": -106.891683, "YCOORD": 40.792417 }, "geometry": { "type": "Point", "coordinates": [ -106.891682610124192, 40.792416838363685, 0.0 ] } }
+,
+{ "type": "Feature", "id": 58, "properties": { "Name": "Emerald Mountain", "Status": "Closed\/Backcountry", "XCOORD": -106.842562, "YCOORD": 40.485431 }, "geometry": { "type": "Point", "coordinates": [ -106.842561985606125, 40.485430967660413, 0.0 ] } }
+,
+{ "type": "Feature", "id": 59, "properties": { "Name": "Baker Mountain", "Status": "Closed\/Backcountry", "XCOORD": -106.602372, "YCOORD": 40.391404 }, "geometry": { "type": "Point", "coordinates": [ -106.602372393293109, 40.391403676941842, 0.0 ] } }
+,
+{ "type": "Feature", "id": 60, "properties": { "Name": "Mesa Creek", "Status": "Closed\/Backcountry", "XCOORD": -108.105744, "YCOORD": 39.067046 }, "geometry": { "type": "Point", "coordinates": [ -108.105743916380035, 39.06704587231031, 0.0 ] } }
+,
+{ "type": "Feature", "id": 61, "properties": { "Name": "Pikes Peak\/Glenn Cove", "Status": "Closed\/Backcountry", "XCOORD": -105.070692, "YCOORD": 38.886866 }, "geometry": { "type": "Point", "coordinates": [ -105.070691737667389, 38.886865919663187, 0.0 ] } }
+
+]
+}

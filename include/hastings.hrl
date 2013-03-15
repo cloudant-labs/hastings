@@ -10,7 +10,7 @@
 }).
 
 -record(index_query_args, {
-    q,
+    bbox=undefined,
     limit=25,
     stale=false,
     include_docs=false,
