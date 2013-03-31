@@ -15,16 +15,22 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
     % match query args against open search / leaflet string
     QueryArgs = #index_query_args{
         bbox = BBox,
+        wkt=Wkt,
+        radius=Radius,
+        lat=Lat,
+        lon=Lon,
         include_docs = IncludeDocs
     } = parse_index_params(Req),
-    % TODO remove this requirement to match radius etc
-    case BBox of
-        undefined ->
-            Msg = <<"Query must include a 'bbox' argument">>,
-            throw({query_parse_error, Msg});
-        _ ->
-            ok
+    % check we have at least one of radius, wkt or bbox
+    case (BBox == undefined) and (Wkt == undefined) and 
+        ((Radius == undefined) and (Lat == undefined) and (Lon == undefined)) of
+    true ->
+        Msg = <<"must include a query argument argument">>,
+        throw({query_parse_error, Msg});
+    _ ->
+        ok
     end,
+
     % look at geojson spec to see how to add TotalHits
     case hastings_fabric_search:go(DbName, DDoc, IndexName, QueryArgs) of
     {ok, _TotalHits, Hits0} ->
@@ -92,6 +98,14 @@ parse_index_params(IndexParams) ->
 
 validate_index_query(bbox, Value, Args) ->
     Args#index_query_args{bbox=Value};
+validate_index_query(g, Value, Args) ->
+    Args#index_query_args{wkt=Value};
+validate_index_query(radius, Value, Args) ->
+    Args#index_query_args{radius=Value};
+validate_index_query(lat, Value, Args) ->
+    Args#index_query_args{lat=Value};
+validate_index_query(lon, Value, Args) ->
+    Args#index_query_args{lon=Value};
 validate_index_query(stale, Value, Args) ->
     Args#index_query_args{stale=Value};
 validate_index_query(limit, Value, Args) ->
@@ -109,6 +123,14 @@ parse_index_param("bbox", Value) ->
              parse_float_param(MinY),
              parse_float_param(MaxX),
              parse_float_param(MaxY)]}];
+parse_index_param("g", Value) ->
+    [{g, Value}];    
+parse_index_param("radius", Value) ->
+    [{radius, parse_float_param(Value)}];
+parse_index_param("lat", Value) ->
+    [{lat, parse_float_param(Value)}];
+parse_index_param("lon", Value) ->
+    [{lon, parse_float_param(Value)}];
 parse_index_param("limit", Value) ->
     [{limit, parse_positive_int_param(Value)}];
 parse_index_param("stale", "ok") ->

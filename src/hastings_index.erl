@@ -90,18 +90,45 @@ handle_call({await, RequestSeq}, From, #state{waiting_list=WaitList}=State) ->
         waiting_list=[{From,RequestSeq}|WaitList]
     }};
 
-handle_call({search, QueryArgs}, _From, State = #state{index_h=Idx}) ->
+handle_call({search, #index_query_args{bbox=undefined, wkt=undefined}=QueryArgs},
+      _From, State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
+    #index_query_args{
+        radius = Radius,
+        lat = Lat,
+        lon = Lon,
+        limit = _Limit,
+        stale = _Stale
+    } = QueryArgs,
+    % TODO paging
+    {ok, Hits} = erl_spatial:index_intersects(Idx, {Lon, Lat, Radius}, 
+      ?WGS84_LL, Crs),
+    {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
+
+handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
+     State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
+    #index_query_args{
+        wkt = Wkt,
+        limit = _Limit,
+        stale = _Stale
+    } = QueryArgs,
+    % TODO paging
+    {ok, Hits} = erl_spatial:index_intersects(Idx, Wkt, ?WGS84_LL, Crs),
+    {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
+
+handle_call({search, QueryArgs}, _From, 
+      State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
         bbox = BBox,
         limit = _Limit,
         stale = _Stale
     } = QueryArgs,
-    % TODO paging for now bbox only
+    % TODO paging
     Reply = case BBox of 
       [MinX, MinY, MaxX, MaxY] ->
           {ok, Hits} = erl_spatial:index_intersects(Idx, 
             {MinX, MinY},
-            {MaxX, MaxY}            
+            {MaxX, MaxY},
+            ?WGS84_LL, Crs            
           ),
           {ok, #docs{total_hits=length(Hits), hits=Hits}};
       _ ->
