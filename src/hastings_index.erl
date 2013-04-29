@@ -100,9 +100,13 @@ handle_call({search, #index_query_args{bbox=undefined, wkt=undefined}=QueryArgs}
         stale = _Stale
     } = QueryArgs,
     % TODO paging
-    {ok, Hits} = erl_spatial:index_intersects(Idx, {Lon, Lat, Radius}, 
-      ?WGS84_LL, Crs),
-    {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
+    case erl_spatial:index_intersects(Idx, {Lon, Lat, Radius},
+      ?WGS84_LL, Crs) of 
+    {ok, Hits} ->
+      {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
+    Reply ->
+      {reply, Reply, State}
+    end;
 
 handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
      State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
@@ -112,8 +116,12 @@ handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
         stale = _Stale
     } = QueryArgs,
     % TODO paging
-    {ok, Hits} = erl_spatial:index_intersects(Idx, Wkt, ?WGS84_LL, Crs),
-    {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
+    case erl_spatial:index_intersects(Idx, Wkt, ?WGS84_LL, Crs) of 
+    {ok, Hits} ->
+      {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
+    Reply ->
+      {reply, Reply, State}
+    end;
 
 handle_call({search, QueryArgs}, _From, 
       State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
@@ -125,12 +133,16 @@ handle_call({search, QueryArgs}, _From,
     % TODO paging
     Reply = case BBox of 
       [MinX, MinY, MaxX, MaxY] ->
-          {ok, Hits} = erl_spatial:index_intersects(Idx, 
+          case erl_spatial:index_intersects(Idx,
             {MinX, MinY},
             {MaxX, MaxY},
-            ?WGS84_LL, Crs            
-          ),
-          {ok, #docs{total_hits=length(Hits), hits=Hits}};
+            ?WGS84_LL, Crs
+          ) of
+          {ok, Hits} ->
+            {ok, #docs{total_hits=length(Hits), hits=Hits}};
+          R ->
+            R
+          end;
       _ ->
         {ok, #docs{total_hits=0, hits=[]}}
     end,
