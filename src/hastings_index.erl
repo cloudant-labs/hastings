@@ -293,12 +293,14 @@ design_doc_to_index(#doc{id=Id,body={Fields}}, IndexName) ->
             Crs = couch_util:get_value(<<"crs">>, Index, undefined),
             Def = couch_util:get_value(<<"index">>, Index),
             Sig = ?l2b(couch_util:to_hex(couch_util:md5(term_to_binary({Crs, Def})))),
+            Limit = couch_util:get_value(<<"limit">>, Index), 
             {ok, #index{
                ddoc_id=Id,
                def=Def,
                def_lang=Language,
                name=IndexName,
                crs=Crs,
+               limit=Limit,
                sig=Sig}}
     end.
 
