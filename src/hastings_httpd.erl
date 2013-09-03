@@ -11,7 +11,6 @@
 
 handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
                   ,#db{name=DbName}, DDoc) ->
-    % TODO change this to stream response as the hits return
     % match query args against open search / leaflet string
     QueryArgs = #index_query_args{
         bbox = BBox,
@@ -32,7 +31,7 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
     end,
 
     % look at geojson spec to see how to add TotalHits
-    case hastings_fabric_search:go(DbName, DDoc, IndexName, QueryArgs) of
+    case page_results(DbName, DDoc, IndexName, QueryArgs, 0, 0, []) of 
     {ok, _TotalHits, Hits0} ->
         Hits = [
             begin
@@ -60,7 +59,9 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
             {features, Hits}
         ]});
     {error, Reason} ->
-        send_error(Req, Reason)
+        send_error(Req, Reason);
+    {timeout, _} ->
+        send_error(Req, <<"Timeout in server request">>)
     end;
 
 handle_search_req(Req, _Db, _DDoc) ->
@@ -112,6 +113,8 @@ validate_index_query(limit, Value, Args) ->
     Args#index_query_args{limit=Value};
 validate_index_query(include_docs, Value, Args) ->
     Args#index_query_args{include_docs=Value};
+validate_index_query(startIndex, Value, Args) ->
+    Args#index_query_args{startIndex=Value};
 validate_index_query(extra, _Value, Args) ->
     Args.
 
@@ -139,6 +142,8 @@ parse_index_param("stale", _Value) ->
     throw({query_parse_error, <<"stale only available as stale=ok">>});
 parse_index_param("include_docs", Value) ->
     [{include_docs, parse_bool_param(Value)}];
+parse_index_param("startIndex", Value) ->
+    [{startIndex, parse_positive_int_param(Value)}];
 parse_index_param(Key, Value) ->
     [{extra, {Key, Value}}].
 
@@ -179,3 +184,37 @@ parse_positive_int_param(Val) ->
         Msg = io_lib:format(Fmt, [Val]),
         throw({query_parse_error, ?l2b(Msg)})
     end.
+
+page_results(DbName, DDoc, IndexName, #index_query_args{
+        limit=Limit,
+        startIndex=StartIndex,
+        currentPage=CurrentPage
+    } = QueryArgs, CurrentIndex, TotalHits, HitsAcc) ->
+    case (CurrentIndex + TotalHits) > StartIndex of 
+    true ->
+        % stop here, we have gone past the index point, 
+        % result limit should always be less than page limit
+        % note not an error to go over list length with sublist
+        Hits0 = lists:sublist(lists:keysort(1, HitsAcc), StartIndex + 1, Limit),
+        {ok, length(Hits0), Hits0};
+    _ ->
+        case hastings_fabric_search:go(DbName, DDoc, IndexName, QueryArgs) of 
+            {ok, 0, _} ->
+               {ok, 0, HitsAcc};
+            {ok, TotalHits0, Hits0} ->  
+                case CurrentPage rem 2 of 
+                0 -> 
+                    page_results(DbName, DDoc, IndexName, QueryArgs#index_query_args{currentPage=CurrentPage + 1}, CurrentIndex + TotalHits0,
+                    TotalHits0, HitsAcc ++ Hits0); % lists:sublist([HitsAcc | Hits0], StartIndex - CurrentIndex));
+                _ ->
+                    page_results(DbName, DDoc, IndexName, QueryArgs#index_query_args{currentPage=CurrentPage + 1}, CurrentIndex + TotalHits0,
+                    TotalHits0, HitsAcc ++ Hits0)
+                end;
+            Error ->
+                Error
+        end
+    end.
+    
+
+    
+

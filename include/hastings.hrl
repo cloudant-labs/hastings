@@ -1,11 +1,13 @@
 -record(index, {
     current_seq=0,
+    flush_seq=20,
     dbname,
     ddoc_id,
     def,
     def_lang,
     crs="urn:ogc:def:crs:EPSG::4326",
     name,
+    limit=200,
     sig=nil
 }).
 
@@ -18,7 +20,8 @@
     limit=200,
     stale=false,
     include_docs=false,
-    bookmark=nil
+    startIndex=0,
+    currentPage=0
 }).
 
 -record(docs, {

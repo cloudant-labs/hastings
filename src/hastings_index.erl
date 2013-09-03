@@ -55,10 +55,10 @@ update(Pid, Id, Geom) ->
 init({DbName, Index}) ->
     process_flag(trap_exit, true),
     case open_index(DbName, Index) of
-        {ok, Pid, Idx, Seq} ->
+        {ok, Pid, Idx, Seq, FlushSeq} ->
             State=#state{
               dbname=DbName,
-              index=Index#index{current_seq=Seq, dbname=DbName},
+              index=Index#index{current_seq=Seq, dbname=DbName, flush_seq=FlushSeq},
               index_pid=Pid,
               index_h = Idx
              },
@@ -91,15 +91,14 @@ handle_call({await, RequestSeq}, From, #state{waiting_list=WaitList}=State) ->
     }};
 
 handle_call({search, #index_query_args{bbox=undefined, wkt=undefined}=QueryArgs},
-      _From, State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
+      _From, State = #state{index_h=Idx, index=#index{crs=Crs, limit=ResultLimit}}) ->
     #index_query_args{
         radius = Radius,
         lat = Lat,
         lon = Lon,
-        limit = _Limit,
-        stale = _Stale
+        currentPage = CurrentPage
     } = QueryArgs,
-    % TODO paging
+    erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
     case erl_spatial:index_intersects(Idx, {Lon, Lat, Radius},
       ?WGS84_LL, Crs) of 
     {ok, Hits} ->
@@ -109,13 +108,12 @@ handle_call({search, #index_query_args{bbox=undefined, wkt=undefined}=QueryArgs}
     end;
 
 handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
-     State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
+     State = #state{index_h=Idx, index=#index{crs=Crs, limit=ResultLimit}}) ->
     #index_query_args{
         wkt = Wkt,
-        limit = _Limit,
-        stale = _Stale
+        currentPage = CurrentPage
     } = QueryArgs,
-    % TODO paging
+    erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
     case erl_spatial:index_intersects(Idx, Wkt, ?WGS84_LL, Crs) of 
     {ok, Hits} ->
       {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
@@ -124,13 +122,12 @@ handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
     end;
 
 handle_call({search, QueryArgs}, _From, 
-      State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
+      State = #state{index_h=Idx, index=#index{crs=Crs, limit=ResultLimit}}) ->
     #index_query_args{
         bbox = BBox,
-        limit = _Limit,
-        stale = _Stale
+        currentPage = CurrentPage
     } = QueryArgs,
-    % TODO paging
+    erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
     Reply = case BBox of 
       [MinX, MinY, MaxX, MaxY] ->
           case erl_spatial:index_intersects(Idx,
@@ -149,9 +146,16 @@ handle_call({search, QueryArgs}, _From,
     {reply, Reply, State};
 
 handle_call({new_seq, Seq}, _From, 
-        #state{index=#index{dbname=DbName, sig=Sig}}=State) ->
-    FileName = get_priv_filename(DbName, Sig),
-    put_seq(FileName, Seq),
+        #state{index=#index{dbname=DbName, sig=Sig,
+        flush_seq=FlushSeq} = Idx}=State) ->
+    case Seq rem FlushSeq of 
+    0 ->  
+      FileName = get_priv_filename(DbName, Sig),
+      erl_spatial:index_flush(Idx),
+      put_seq(FileName, Seq);
+    _ ->
+      ok
+    end,
     {reply, {ok, updated}, State};
 
 handle_call(info, _From, State = #state{index_h=Idx}) ->
@@ -234,15 +238,17 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % private functions.
-open_index(DbName, #index{sig=Sig, crs=CRS}) ->
+open_index(DbName, #index{sig=Sig, crs=CRS, limit=ResultLimit}) ->
     FileName = get_filename(DbName, Sig), 
     case filelib:ensure_dir(FileName) of 
     ok ->
         case erl_spatial:index_create(FileName, CRS) of 
           {ok, Idx} ->
+            erl_spatial:index_set_resultset_limit(Idx, ResultLimit),
             case get_seq(get_priv_filename(DbName, Sig)) of
               {ok, Seq} ->
-                {ok, self(), Idx, Seq};
+                FlushSeq = list_to_integer(couch_config:get("hastings", "flush_seq", "20")),
+                {ok, self(), Idx, Seq, FlushSeq};
               Error ->
                 Error
             end; 

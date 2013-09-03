@@ -10,7 +10,6 @@
 -export([go/4]).
 
 -record(state, {
-    limit,
     docs,
     counters
 }).
@@ -25,11 +24,9 @@ go(DbName, DDoc, IndexName, QueryArgs) ->
     Counters = fabric_dict:init(Workers, nil),
     go(QueryArgs, Counters).
 
-go(QueryArgs, Counters) ->
+go(_QueryArgs, Counters) ->
     {Workers, _} = lists:unzip(Counters),
-    #index_query_args{limit = Limit} = QueryArgs,
     State = #state{
-        limit = Limit,
         docs = #docs{total_hits=0,hits=[]},
         counters = Counters
      },
@@ -55,7 +52,7 @@ handle_message({rexi_DOWN, _, {_, NodeRef}, _}, _, State) ->
         {error, {nodedown, <<"progress not possible">>}}
     end;
 
-handle_message({ok, #docs{hits=Hits}=NewDocs0}, Shard, #state{docs=Docs, limit=Limit}=State) ->
+handle_message({ok, #docs{hits=Hits}=NewDocs0}, Shard, #state{docs=Docs}=State) ->
     NewDocs = NewDocs0#docs{hits=[{Hit,Shard} || Hit <- Hits]},
     case fabric_dict:lookup_element(Shard, State#state.counters) of
     undefined ->
@@ -65,7 +62,8 @@ handle_message({ok, #docs{hits=Hits}=NewDocs0}, Shard, #state{docs=Docs, limit=L
         C1 = fabric_dict:store(Shard, ok, State#state.counters),
         C2 = fabric_view:remove_overlapping_shards(Shard, C1),
         
-        MergedDocs = merge_docs(Docs, NewDocs, Limit),
+        MergedDocs = merge_docs(Docs, NewDocs),
+
         State1 = State#state{
             counters=C2,
             docs=MergedDocs
@@ -103,7 +101,7 @@ get_shards(DbName, #index_query_args{stale=ok}) ->
 get_shards(DbName, #index_query_args{stale=false}) ->
     mem3:shards(DbName).
 
-merge_docs(#docs{total_hits=TotalA, hits=HitsA}, #docs{total_hits=TotalB, hits=HitsB}, Limit) ->
+merge_docs(#docs{total_hits=TotalA, hits=HitsA}, #docs{total_hits=TotalB, hits=HitsB}) ->
     MergedTotal = TotalA + TotalB,
-    MergedHits = lists:sublist(HitsA ++ HitsB, Limit),
+    MergedHits = HitsA ++ HitsB,
     #docs{total_hits=MergedTotal, hits=MergedHits}.
