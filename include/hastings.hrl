@@ -13,6 +13,7 @@
 
 -record(index_query_args, {
     bbox=undefined,
+    relation=undefined,
     wkt=undefined,
     radius=undefined,
     lat=undefined,

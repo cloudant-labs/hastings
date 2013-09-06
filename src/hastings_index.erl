@@ -94,13 +94,24 @@ handle_call({search, #index_query_args{bbox=undefined, wkt=undefined}=QueryArgs}
       _From, State = #state{index_h=Idx, index=#index{crs=Crs, limit=ResultLimit}}) ->
     #index_query_args{
         radius = Radius,
+        relation = Relation,
         lat = Lat,
         lon = Lon,
         currentPage = CurrentPage
     } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
-    case erl_spatial:index_intersects(Idx, {Lon, Lat, Radius},
-      ?WGS84_LL, Crs) of 
+    
+    % opensearch is currently intersects, contains and disjoint
+    ResultSet = case Relation of 
+      "contains" ->
+        erl_spatial:index_contains(Idx, {Lon, Lat, Radius, 0, Crs});
+      "disjoint" ->
+        erl_spatial:index_disjoint(Idx, {Lon, Lat, Radius, 0, Crs});
+      _ ->
+        erl_spatial:index_intersects(Idx, {Lon, Lat, Radius, 0, Crs})
+    end,
+
+    case ResultSet of 
     {ok, Hits} ->
       {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
     Reply ->
@@ -111,10 +122,21 @@ handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
      State = #state{index_h=Idx, index=#index{crs=Crs, limit=ResultLimit}}) ->
     #index_query_args{
         wkt = Wkt,
+        relation = Relation,
         currentPage = CurrentPage
     } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
-    case erl_spatial:index_intersects(Idx, Wkt, ?WGS84_LL, Crs) of 
+    % opensearch is currently intersects, contains and disjoint
+    ResultSet = case Relation of 
+      "contains" ->
+        erl_spatial:index_contains(Idx, Wkt, 0, Crs);
+      "disjoint" ->
+        erl_spatial:index_disjoint(Idx, Wkt, 0, Crs);
+      _ ->
+        erl_spatial:index_intersects(Idx, Wkt, 0, Crs)
+    end,
+
+    case ResultSet of 
     {ok, Hits} ->
       {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
     Reply ->
