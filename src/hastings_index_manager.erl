@@ -28,14 +28,7 @@ get_index(DbName, Index) ->
 init([]) ->
     ets:new(?BY_SIG, [set, private, named_table]),
     ets:new(?BY_PID, [set, private, named_table]),
-    couch_db_update_notifier:start_link(
-        fun({deleted, DbName}) ->
-            gen_server:cast(?MODULE, {cleanup, DbName});
-        ({created, DbName}) ->
-            gen_server:cast(?MODULE, {cleanup, DbName});
-        (_Else) ->
-            ok
-        end),
+    couch_event:link_listener(?MODULE, handle_db_event, nil, [all_dbs]),
     process_flag(trap_exit, true),
     {ok, nil}.
 
