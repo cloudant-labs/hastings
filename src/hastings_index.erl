@@ -90,8 +90,8 @@ handle_call({await, RequestSeq}, From, #state{waiting_list=WaitList}=State) ->
         waiting_list=[{From,RequestSeq}|WaitList]
     }};
 
-handle_call({search, #index_query_args{bbox=undefined, wkt=undefined}=QueryArgs},
-      _From, State = #state{index_h=Idx, index=#index{crs=Crs, limit=ResultLimit}}) ->
+handle_call({search, #index_query_args{bbox=undefined, wkt=undefined, limit=ResultLimit}=QueryArgs},
+      _From, State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
         radius = Radius,
         relation = Relation,
@@ -119,11 +119,12 @@ handle_call({search, #index_query_args{bbox=undefined, wkt=undefined}=QueryArgs}
     end;
 
 handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
-     State = #state{index_h=Idx, index=#index{crs=Crs, limit=ResultLimit}}) ->
+     State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
         wkt = Wkt,
         relation = Relation,
-        currentPage = CurrentPage
+        currentPage = CurrentPage,
+        limit=ResultLimit
     } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
     % opensearch is currently intersects, contains and disjoint
@@ -144,11 +145,12 @@ handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
     end;
 
 handle_call({search, QueryArgs}, _From, 
-      State = #state{index_h=Idx, index=#index{crs=Crs, limit=ResultLimit}}) ->
+      State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
         bbox = BBox,
-        currentPage = CurrentPage
-    } = QueryArgs,
+        currentPage = CurrentPage,
+        limit=ResultLimit
+    } = QueryArgs,    
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
     Reply = case BBox of 
       [MinX, MinY, MaxX, MaxY] ->
@@ -260,16 +262,15 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % private functions.
-open_index(DbName, #index{sig=Sig, crs=CRS, limit=ResultLimit}) ->
+open_index(DbName, #index{sig=Sig, crs=CRS}) ->
     FileName = get_filename(DbName, Sig), 
     case filelib:ensure_dir(FileName) of 
     ok ->
         case erl_spatial:index_create(FileName, CRS) of 
           {ok, Idx} ->
-            erl_spatial:index_set_resultset_limit(Idx, ResultLimit),
             case get_seq(get_priv_filename(DbName, Sig)) of
               {ok, Seq} ->
-                FlushSeq = list_to_integer(couch_config:get("hastings", "flush_seq", "20")),
+                FlushSeq = list_to_integer(config:get("hastings", "flush_seq", "20")),
                 {ok, self(), Idx, Seq, FlushSeq};
               Error ->
                 Error
@@ -283,7 +284,7 @@ open_index(DbName, #index{sig=Sig, crs=CRS, limit=ResultLimit}) ->
 
 
 get_path(DbName) ->
-    filename:join([couch_config:get("couchdb", "view_index_dir"), DbName]).
+    filename:join([config:get("couchdb", "view_index_dir"), DbName]).
 
 get_filename(DbName, Sig) ->
     filename:join([get_path(DbName), <<Sig/binary, ".geo">>]). 
@@ -312,17 +313,15 @@ design_doc_to_index(#doc{id=Id,body={Fields}}, IndexName) ->
             {error, {not_found, <<IndexName/binary, " not found.">>}};
         {IndexName, {Index}} ->
             % if the Crs or design doc changes then it is a different index
-            Crs = couch_util:get_value(<<"crs">>, Index, undefined),
+            Crs = couch_util:get_value(<<"crs">>, Index, ?WGS84_LL),
             Def = couch_util:get_value(<<"index">>, Index),
             Sig = ?l2b(couch_util:to_hex(couch_util:md5(term_to_binary({Crs, Def})))),
-            Limit = couch_util:get_value(<<"limit">>, Index), 
             {ok, #index{
                ddoc_id=Id,
                def=Def,
                def_lang=Language,
                name=IndexName,
                crs=Crs,
-               limit=Limit,
                sig=Sig}}
     end.
 

@@ -175,7 +175,7 @@ parse_float_param(Val) ->
 
 parse_positive_int_param(Val) ->
     MaximumVal = list_to_integer(
-        couch_config:get("hastings", "max_limit", "200")),
+        config:get("hastings", "max_limit", "200")),
     case parse_int_param(Val) of
     IntVal when IntVal > MaximumVal ->
         Fmt = "Value for limit is too large, must not exceed ~p",

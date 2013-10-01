@@ -10,7 +10,7 @@
 -define(BY_PID, hastings_by_pid).
 
 % public api.
--export([start_link/0, get_index/2]).
+-export([start_link/0, get_index/2, handle_db_event/3]).
 
 % gen_server api.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -85,7 +85,14 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % private functions
-
+handle_db_event(DbName, created, _St) ->
+    gen_server:cast(?MODULE, {cleanup, DbName}),
+    {ok, nil};
+handle_db_event(DbName, deleted, _St) ->
+    gen_server:cast(?MODULE, {cleanup, DbName}),
+    {ok, nil};
+handle_db_event(_DbName, _Event, _St) ->
+    {ok, nil}.
 new_index(DbName, #index{sig=Sig}=Index) ->
     case hastings_index:start_link(DbName, Index) of
     {ok, NewPid} ->

@@ -5,9 +5,8 @@
     ddoc_id,
     def,
     def_lang,
-    crs="urn:ogc:def:crs:EPSG::4326",
+    crs=undefined,
     name,
-    limit=200,
     sig=nil
 }).
 

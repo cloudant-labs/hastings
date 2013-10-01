@@ -50,42 +50,43 @@ info(DbName, DDoc, IndexName) ->
     end.
 
 cleanup(DbName) ->
-    cleanup(DbName, []).        
+    cleanup(DbName, []).
+
+cleanup(<<"shards", _/binary>>=ShardName, ActiveSigs) ->
+    cleanup(mem3:dbname(ShardName), ActiveSigs);            
 
 cleanup(DbName, ActiveSigs) ->
     % get all geo indexes for this database
     % leave active indexes
     {ok, DesignDocs} = fabric:design_docs(DbName),
     ActiveSigs = lists:map(fun(#doc{id = GroupId}) ->
-        {ok, Info} = fabric:get_view_group_info(DbName, GroupId),
-        binary_to_list(couch_util:get_value(signature, Info))
+         {ok, Info} = fabric:get_view_group_info(DbName, GroupId),
+         binary_to_list(couch_util:get_value(signature, Info))
     end, [couch_doc:from_json_obj(DD) || DD <- DesignDocs]),
 
 
     % get all indexes for database
-
-
     % list all .geo and .geopriv
     FileList = filelib:wildcard([config:get("couchdb", "view_index_dir"),
-             couch_util:to_list(DbName), "*.geo*"]),
+              couch_util:to_list(DbName), "*.geo*"]),
 
     % this can be slow for now, speed up later 
     % lists:member is slow
     lists:foreach(fun(Sig) ->
-        % sig should be the name of each Sig after path is removed
-        ASig = filename:rootname(filename:basename(Sig)),
-        case lists:member(ASig, ActiveSigs) of
-            false ->
-                % get the erl_spatial index and destory it
-                case hastings_index_manager:get_index(DbName, Sig) of 
-                    {ok, Pid} ->
-                        hastings_index:delete_index(Pid);
-                    _ ->
-                        ok
-                end;
-            _ ->
-                ok
-        end
+         % sig should be the name of each Sig after path is removed
+         ASig = filename:rootname(filename:basename(Sig)),
+         case lists:member(ASig, ActiveSigs) of
+             false ->
+                 % get the erl_spatial index and destory it
+                 case hastings_index_manager:get_index(DbName, Sig) of 
+                     {ok, Pid} ->
+                         hastings_index:delete_index(Pid);
+                     _ ->
+                         ok
+                 end;
+             _ ->
+                 ok
+         end
     end, FileList),
     ok.
 
