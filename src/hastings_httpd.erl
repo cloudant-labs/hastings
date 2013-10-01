@@ -16,13 +16,13 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
         bbox = BBox,
         wkt=Wkt,
         radius=Radius,
-        lat=Lat,
-        lon=Lon,
+        x=X,
+        y=Y,
         include_docs = IncludeDocs
     } = parse_index_params(Req),
     % check we have at least one of radius, wkt or bbox
     case (BBox == undefined ) and (Wkt == undefined) and 
-        ((Radius == undefined) and (Lat == undefined) and (Lon == undefined)) of
+        ((Radius == undefined) and (X == undefined) and (Y == undefined)) of
     true ->
         Msg = <<"must include a query argument argument">>,
         throw({query_parse_error, Msg});
@@ -105,10 +105,10 @@ validate_index_query(relation, Value, Args) ->
     Args#index_query_args{relation=Value};    
 validate_index_query(radius, Value, Args) ->
     Args#index_query_args{radius=Value};
-validate_index_query(lat, Value, Args) ->
-    Args#index_query_args{lat=Value};
-validate_index_query(lon, Value, Args) ->
-    Args#index_query_args{lon=Value};
+validate_index_query(y, Value, Args) ->
+    Args#index_query_args{y=Value};
+validate_index_query(x, Value, Args) ->
+    Args#index_query_args{x=Value};
 validate_index_query(stale, Value, Args) ->
     Args#index_query_args{stale=Value};
 validate_index_query(limit, Value, Args) ->
@@ -135,9 +135,9 @@ parse_index_param("relation", Value) ->
 parse_index_param("radius", Value) ->
     [{radius, parse_float_param(Value)}];
 parse_index_param("lat", Value) ->
-    [{lat, parse_float_param(Value)}];
+    [{y, parse_float_param(Value)}];
 parse_index_param("lon", Value) ->
-    [{lon, parse_float_param(Value)}];
+    [{x, parse_float_param(Value)}];
 parse_index_param("limit", Value) ->
     [{limit, parse_positive_int_param(Value)}];
 parse_index_param("stale", "ok") ->

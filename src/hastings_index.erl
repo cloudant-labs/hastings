@@ -95,8 +95,8 @@ handle_call({search, #index_query_args{bbox=undefined, wkt=undefined, limit=Resu
     #index_query_args{
         radius = Radius,
         relation = Relation,
-        lat = Lat,
-        lon = Lon,
+        x = X,
+        y = Y,
         currentPage = CurrentPage
     } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
@@ -104,11 +104,25 @@ handle_call({search, #index_query_args{bbox=undefined, wkt=undefined, limit=Resu
     % opensearch is currently intersects, contains and disjoint
     ResultSet = case Relation of 
       "contains" ->
-        erl_spatial:index_contains(Idx, {Lon, Lat, Radius, 0, Crs});
+        erl_spatial:index_contains(Idx, {X, Y, Radius, 0, Crs});
       "disjoint" ->
-        erl_spatial:index_disjoint(Idx, {Lon, Lat, Radius, 0, Crs});
+        erl_spatial:index_disjoint(Idx, {X, Y, Radius, 0, Crs});
+      "contains_properly" ->
+        erl_spatial:index_contains_properly(Idx, {X, Y, Radius, 0, Crs});
+      "covered_by" ->
+        erl_spatial:index_covered_by(Idx, {X, Y, Radius, 0, Crs});
+      "covers" ->
+        erl_spatial:index_covers(Idx, {X, Y, Radius, 0, Crs});
+      "crosses" ->
+        erl_spatial:index_crosses(Idx, {X, Y, Radius, 0, Crs});
+      "overlaps" ->
+        erl_spatial:index_overlaps(Idx, {X, Y, Radius, 0, Crs});
+      "touches" ->
+        erl_spatial:index_touches(Idx, {X, Y, Radius, 0, Crs});
+      "within" ->
+        erl_spatial:index_within(Idx, {X, Y, Radius, 0, Crs});  
       _ ->
-        erl_spatial:index_intersects(Idx, {Lon, Lat, Radius, 0, Crs})
+        erl_spatial:index_intersects(Idx, {X, Y, Radius, 0, Crs})
     end,
 
     case ResultSet of 
@@ -133,6 +147,20 @@ handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
         erl_spatial:index_contains(Idx, Wkt, 0, Crs);
       "disjoint" ->
         erl_spatial:index_disjoint(Idx, Wkt, 0, Crs);
+      "contains_properly" ->
+        erl_spatial:index_contains_properly(Idx, Wkt, 0, Crs);
+      "covered_by" ->
+        erl_spatial:index_covered_by(Idx, Wkt, 0, Crs);
+      "covers" ->
+        erl_spatial:index_covers(Idx, Wkt, 0, Crs);
+      "crosses" ->
+        erl_spatial:index_crosses(Idx, Wkt, 0, Crs);
+      "overlaps" ->
+        erl_spatial:index_overlaps(Idx, Wkt, 0, Crs);
+      "touches" ->
+        erl_spatial:index_touches(Idx, Wkt, 0, Crs);
+      "within" ->
+        erl_spatial:index_within(Idx, Wkt, 0, Crs);  
       _ ->
         erl_spatial:index_intersects(Idx, Wkt, 0, Crs)
     end,
@@ -262,11 +290,11 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % private functions.
-open_index(DbName, #index{sig=Sig, crs=CRS}) ->
+open_index(DbName, #index{sig=Sig, limit=Limit}) ->
     FileName = get_filename(DbName, Sig), 
     case filelib:ensure_dir(FileName) of 
     ok ->
-        case erl_spatial:index_create(FileName, CRS) of 
+        case erl_spatial:index_create([{?IDX_FILENAME, binary_to_list(FileName)}, {?IDX_RESULTLIMIT, Limit}]) of 
           {ok, Idx} ->
             case get_seq(get_priv_filename(DbName, Sig)) of
               {ok, Seq} ->
@@ -315,6 +343,7 @@ design_doc_to_index(#doc{id=Id,body={Fields}}, IndexName) ->
             % if the Crs or design doc changes then it is a different index
             Crs = couch_util:get_value(<<"crs">>, Index, ?WGS84_LL),
             Def = couch_util:get_value(<<"index">>, Index),
+            Limit = list_to_integer(couch_util:get_value(<<"limit">>, Index, "200")),
             Sig = ?l2b(couch_util:to_hex(couch_util:md5(term_to_binary({Crs, Def})))),
             {ok, #index{
                ddoc_id=Id,
@@ -322,6 +351,7 @@ design_doc_to_index(#doc{id=Id,body={Fields}}, IndexName) ->
                def_lang=Language,
                name=IndexName,
                crs=Crs,
+               limit=Limit,
                sig=Sig}}
     end.
 

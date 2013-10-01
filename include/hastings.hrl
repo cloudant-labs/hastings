@@ -7,6 +7,7 @@
     def_lang,
     crs=undefined,
     name,
+    limit=200,
     sig=nil
 }).
 
@@ -15,8 +16,8 @@
     relation=undefined,
     wkt=undefined,
     radius=undefined,
-    lat=undefined,
-    lon=undefined,
+    x=undefined,
+    y=undefined,
     limit=200,
     stale=false,
     include_docs=false,
@@ -32,4 +33,7 @@
 
 % CRS
 -define(WGS84_LL, "urn:ogc:def:crs:EPSG::4326").
+
+-define(IDX_FILENAME, 20).
+-define(IDX_RESULTLIMIT, 200).
 
