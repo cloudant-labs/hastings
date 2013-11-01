@@ -16,13 +16,16 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
         bbox = BBox,
         wkt=Wkt,
         radius=Radius,
+        range_x=EllipseX,
+        range_y=EllipseY,
         x=X,
         y=Y,
         include_docs = IncludeDocs
     } = parse_index_params(Req),
-    % check we have at least one of radius, wkt or bbox
+    % check we have at least one of radius, wkt, bbox or ellipse
     case (BBox == undefined ) and (Wkt == undefined) and 
-        ((Radius == undefined) and (X == undefined) and (Y == undefined)) of
+        ((Radius == undefined) and (X == undefined) and (Y == undefined)) and
+        ((EllipseX == undefined) and (EllipseY == undefined) and (X == undefined) and (Y == undefined)) of
     true ->
         Msg = <<"must include a query argument argument">>,
         throw({query_parse_error, Msg});
@@ -117,6 +120,14 @@ validate_index_query(include_docs, Value, Args) ->
     Args#index_query_args{include_docs=Value};
 validate_index_query(startIndex, Value, Args) ->
     Args#index_query_args{startIndex=Value};
+validate_index_query(srs, Value, Args) ->
+    Args#index_query_args{srs=Value};
+validate_index_query(responseSrs, Value, Args) ->
+    Args#index_query_args{responseSrs=Value};  
+validate_index_query(range_x, Value, Args)->
+    Args#index_query_args{range_x=Value};
+validate_index_query(range_y, Value, Args)->
+    Args#index_query_args{range_y=Value};
 validate_index_query(extra, _Value, Args) ->
     Args.
 
@@ -148,6 +159,14 @@ parse_index_param("include_docs", Value) ->
     [{include_docs, parse_bool_param(Value)}];
 parse_index_param("startIndex", Value) ->
     [{startIndex, parse_positive_int_param(Value)}];
+parse_index_param("srs", Value) ->
+    [{srs, Value}];
+parse_index_param("responseSrs", Value) ->
+    [{responseSrs, Value}];
+parse_index_param("rangex", Value) ->
+    [{range_x, parse_float_param(Value)}];
+parse_index_param("rangey", Value) ->
+    [{range_y, parse_float_param(Value)}];
 parse_index_param(Key, Value) ->
     [{extra, {Key, Value}}].
 

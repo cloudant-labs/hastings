@@ -90,39 +90,80 @@ handle_call({await, RequestSeq}, From, #state{waiting_list=WaitList}=State) ->
         waiting_list=[{From,RequestSeq}|WaitList]
     }};
 
-handle_call({search, #index_query_args{bbox=undefined, wkt=undefined, limit=ResultLimit}=QueryArgs},
+handle_call({search, #index_query_args{bbox=undefined, wkt=undefined, 
+      range_x=undefined, range_y=undefined, limit=ResultLimit}=QueryArgs},
       _From, State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
         radius = Radius,
         relation = Relation,
         x = X,
         y = Y,
+        srs=ReqSrs,
         currentPage = CurrentPage
     } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
     
-    % opensearch is currently intersects, contains and disjoint
     ResultSet = case Relation of 
       "contains" ->
-        erl_spatial:index_contains(Idx, {X, Y, Radius, 0, Crs});
+        erl_spatial:index_contains(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "disjoint" ->
-        erl_spatial:index_disjoint(Idx, {X, Y, Radius, 0, Crs});
+        erl_spatial:index_disjoint(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "contains_properly" ->
-        erl_spatial:index_contains_properly(Idx, {X, Y, Radius, 0, Crs});
+        erl_spatial:index_contains_properly(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "covered_by" ->
-        erl_spatial:index_covered_by(Idx, {X, Y, Radius, 0, Crs});
+        erl_spatial:index_covered_by(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "covers" ->
-        erl_spatial:index_covers(Idx, {X, Y, Radius, 0, Crs});
+        erl_spatial:index_covers(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "crosses" ->
-        erl_spatial:index_crosses(Idx, {X, Y, Radius, 0, Crs});
+        erl_spatial:index_crosses(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "overlaps" ->
-        erl_spatial:index_overlaps(Idx, {X, Y, Radius, 0, Crs});
+        erl_spatial:index_overlaps(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "touches" ->
-        erl_spatial:index_touches(Idx, {X, Y, Radius, 0, Crs});
+        erl_spatial:index_touches(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "within" ->
-        erl_spatial:index_within(Idx, {X, Y, Radius, 0, Crs});  
+        erl_spatial:index_within(Idx, {X, Y, Radius}, ReqSrs, Crs);  
       _ ->
-        erl_spatial:index_intersects(Idx, {X, Y, Radius, 0, Crs})
+        erl_spatial:index_intersects(Idx, {X, Y, Radius}, ReqSrs, Crs)
+    end,
+
+    case ResultSet of 
+    {ok, Hits} ->
+      {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
+    Reply ->
+      {reply, Reply, State}
+    end;
+
+handle_call({search, #index_query_args{bbox=undefined, range_x=undefined, range_y=undefined}=QueryArgs}, _From,
+     State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
+    #index_query_args{
+        wkt = Wkt,
+        relation = Relation,
+        currentPage = CurrentPage,
+        srs=ReqSrs,
+        limit=ResultLimit
+    } = QueryArgs,
+    erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
+    ResultSet = case Relation of 
+      "contains" ->
+        erl_spatial:index_contains(Idx, Wkt, ReqSrs, Crs);
+      "disjoint" ->
+        erl_spatial:index_disjoint(Idx, Wkt, ReqSrs, Crs);
+      "contains_properly" ->
+        erl_spatial:index_contains_properly(Idx, Wkt, ReqSrs, Crs);
+      "covered_by" ->
+        erl_spatial:index_covered_by(Idx, Wkt, ReqSrs, Crs);
+      "covers" ->
+        erl_spatial:index_covers(Idx, Wkt, ReqSrs, Crs);
+      "crosses" ->
+        erl_spatial:index_crosses(Idx, Wkt, ReqSrs, Crs);
+      "overlaps" ->
+        erl_spatial:index_overlaps(Idx, Wkt, ReqSrs, Crs);
+      "touches" ->
+        erl_spatial:index_touches(Idx, Wkt, ReqSrs, Crs);
+      "within" ->
+        erl_spatial:index_within(Idx, Wkt, ReqSrs, Crs);  
+      _ ->
+        erl_spatial:index_intersects(Idx, Wkt, ReqSrs, Crs)
     end,
 
     case ResultSet of 
@@ -135,34 +176,38 @@ handle_call({search, #index_query_args{bbox=undefined, wkt=undefined, limit=Resu
 handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
      State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
-        wkt = Wkt,
+        range_x=RangeX,
+        range_y=RangeY,
+        x=X,
+        y=Y,
         relation = Relation,
         currentPage = CurrentPage,
+        srs=ReqSrs,
         limit=ResultLimit
     } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
-    % opensearch is currently intersects, contains and disjoint
+
     ResultSet = case Relation of 
       "contains" ->
-        erl_spatial:index_contains(Idx, Wkt, 0, Crs);
+        erl_spatial:index_contains(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "disjoint" ->
-        erl_spatial:index_disjoint(Idx, Wkt, 0, Crs);
+        erl_spatial:index_disjoint(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "contains_properly" ->
-        erl_spatial:index_contains_properly(Idx, Wkt, 0, Crs);
+        erl_spatial:index_contains_properly(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "covered_by" ->
-        erl_spatial:index_covered_by(Idx, Wkt, 0, Crs);
+        erl_spatial:index_covered_by(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "covers" ->
-        erl_spatial:index_covers(Idx, Wkt, 0, Crs);
+        erl_spatial:index_covers(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "crosses" ->
-        erl_spatial:index_crosses(Idx, Wkt, 0, Crs);
+        erl_spatial:index_crosses(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "overlaps" ->
-        erl_spatial:index_overlaps(Idx, Wkt, 0, Crs);
+        erl_spatial:index_overlaps(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "touches" ->
-        erl_spatial:index_touches(Idx, Wkt, 0, Crs);
+        erl_spatial:index_touches(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "within" ->
-        erl_spatial:index_within(Idx, Wkt, 0, Crs);  
+        erl_spatial:index_within(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);  
       _ ->
-        erl_spatial:index_intersects(Idx, Wkt, 0, Crs)
+        erl_spatial:index_intersects(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs)
     end,
 
     case ResultSet of 
@@ -177,7 +222,8 @@ handle_call({search, QueryArgs}, _From,
     #index_query_args{
         bbox = BBox,
         currentPage = CurrentPage,
-        limit=ResultLimit
+        limit=ResultLimit,
+        srs=ReqSrs
     } = QueryArgs,    
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
     Reply = case BBox of 
@@ -185,7 +231,7 @@ handle_call({search, QueryArgs}, _From,
           case erl_spatial:index_intersects(Idx,
             {MinX, MinY},
             {MaxX, MaxY},
-            ?WGS84_LL, Crs
+            ReqSrs, Crs
           ) of
           {ok, Hits} ->
             {ok, #docs{total_hits=length(Hits), hits=Hits}};

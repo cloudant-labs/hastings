@@ -16,13 +16,17 @@
     relation=undefined,
     wkt=undefined,
     radius=undefined,
+    range_x=undefined,
+    range_y=undefined,
     x=undefined,
     y=undefined,
     limit=200,
     stale=false,
     include_docs=false,
     startIndex=0,
-    currentPage=0
+    currentPage=0,
+    srs=0,
+    responseSrs=0
 }).
 
 -record(docs, {
