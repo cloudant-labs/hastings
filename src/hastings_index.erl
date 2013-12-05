@@ -53,7 +53,7 @@ update(Pid, Id, Geom) ->
 % gen_server functions.
 
 init({DbName, Index}) ->
-    process_flag(trap_exit, true),
+    process_flag(trap_exit, true),        
     case open_index(DbName, Index) of
         {ok, Pid, Idx, Seq, FlushSeq} ->
             State=#state{
@@ -244,16 +244,10 @@ handle_call({search, QueryArgs}, _From,
     {reply, Reply, State};
 
 handle_call({new_seq, Seq}, _From, 
-        #state{index=#index{dbname=DbName, sig=Sig,
-        flush_seq=FlushSeq} = Idx}=State) ->
-    case Seq rem FlushSeq of 
-    0 ->  
-      FileName = get_priv_filename(DbName, Sig),
-      erl_spatial:index_flush(Idx),
-      put_seq(FileName, Seq);
-    _ ->
-      ok
-    end,
+    #state{index=#index{dbname=DbName, sig=Sig,
+        flush_seq=_FlushSeq} = _Idx}=State) ->
+    % when to flush index
+    put_seq(get_priv_filename(DbName, Sig), Seq),
     {reply, {ok, updated}, State};
 
 handle_call(info, _From, State = #state{index_h=Idx}) ->
@@ -274,8 +268,9 @@ handle_call(delete_index, _From, #state{index_h={dbname=DbName,
     file:delete(PrivFileName),
     {reply, ok};
 
-handle_call({update, Id, Geom}, _From, State = #state{index_h=Idx}) ->
-    {reply, erl_spatial:index_insert(Idx, Id, Geom), State}.
+handle_call({update, Id, Geom}, _From, State = #state{index_h=Idx}) -> 
+    {reply, erl_spatial:index_insert(Idx, Id, Geom), 
+          State}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -336,11 +331,15 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % private functions.
-open_index(DbName, #index{sig=Sig, limit=Limit}) ->
+open_index(DbName, #index{sig=Sig, limit=_Limit}) ->
     FileName = get_filename(DbName, Sig), 
     case filelib:ensure_dir(FileName) of 
     ok ->
-        case erl_spatial:index_create([{?IDX_FILENAME, binary_to_list(FileName)}, {?IDX_RESULTLIMIT, Limit}]) of 
+        % case erl_spatial:index_create([{?IDX_STORAGE, ?IDX_DISK}, 
+        %     {?IDX_FILENAME, binary_to_list(FileName)}, 
+        %     {?IDX_RESULTLIMIT, Limit},
+        %     {?IDX_OVERWRITE, 0}]) of 
+        case erl_spatial:index_create() of
           {ok, Idx} ->
             case get_seq(get_priv_filename(DbName, Sig)) of
               {ok, Seq} ->
@@ -361,7 +360,7 @@ get_path(DbName) ->
     filename:join([config:get("couchdb", "view_index_dir"), DbName]).
 
 get_filename(DbName, Sig) ->
-    filename:join([get_path(DbName), <<Sig/binary, ".geo">>]). 
+  filename:join([get_path(DbName), <<Sig/binary, ".geo">>]). 
 
 get_priv_filename(DbName, Sig) ->
   FileName = get_filename(DbName, Sig),
@@ -377,7 +376,7 @@ get_seq(FileName) ->
     end.
 
 put_seq(FileName, Seq) ->
-    file:write_file(FileName, io_lib:fwrite("~p.\n",[[{seq, Seq}]])).
+    file:write_file(FileName, io_lib:fwrite("~pq.\n",[[{seq, Seq}]])).
 
 design_doc_to_index(#doc{id=Id,body={Fields}}, IndexName) ->
     Language = couch_util:get_value(<<"language">>, Fields, <<"javascript">>),

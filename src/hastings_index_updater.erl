@@ -57,10 +57,14 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
     couch_task_status:update([{changes_done, I}, {progress, (I * 100) div Total}]),
     DI = couch_doc:to_doc_info(FDI),
     #doc_info{id=Id, revs=[#rev_info{deleted=Del}|_]} = DI,
-    % TODO parse revs to see if geometry has changed as spatial index id
-    % is a composite of doc id and geom, for now assumed document is fixed
-    % Preference would be to override this in erl_spatial and libspatialindex
-    {ok, Doc} = couch_db:open_doc(Db, DI, []),
+    {ok, Doc} = case Del of 
+    true ->
+        % open last doc of tree before deltion
+        couch_db:open_doc(Db, FDI, [deleted]);
+    _ ->
+        couch_db:open_doc(Db, DI, [])
+    end,
+    
     Json = couch_doc:to_json_obj(Doc, []),
     case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
     [[]] ->
@@ -70,6 +74,9 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
             true ->
                 ok = hastings_index:delete(IndexPid, Id, Geom);
             false ->
+                % TODO geometry might change, as a revision changes, delete the previous
+                % id/geom from the spatial index - nb this will be fixed with a tpr-tree
+                % TODO delete previous revision
                 ok = hastings_index:update(IndexPid, Id, Geom)
         end
     end,

@@ -15,6 +15,7 @@ search(DbName, DDoc, IndexName, QueryArgs) ->
     #index_query_args{
         stale = Stale
     } = QueryArgs,
+
     {_LastSeq, MinSeq} = calculate_seqs(Db, Stale),
     case hastings_index:design_doc_to_index(DDoc, IndexName) of
         {ok, Index} ->

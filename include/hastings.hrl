@@ -38,6 +38,9 @@
 % CRS
 -define(WGS84_LL, "urn:ogc:def:crs:EPSG::4326").
 
+-define(IDX_OVERWRITE, 13).
 -define(IDX_FILENAME, 20).
--define(IDX_RESULTLIMIT, 200).
+-define(IDX_RESULTLIMIT, 24).
 
+-define(IDX_STORAGE, 3).
+-define(IDX_DISK, 1).
