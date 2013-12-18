@@ -59,8 +59,10 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
     #doc_info{id=Id, revs=[#rev_info{deleted=Del}|_]} = DI,
     {ok, Doc} = case Del of 
     true ->
-        % open last doc of tree before deltion
-        couch_db:open_doc(Db, FDI, [deleted]);
+        % open last doc of tree before deletion
+        {ok, #doc{revs = {RevPos, [_, PrevRev|_]}} = DelDoc} = couch_db:open_doc(Db, FDI, [deleted]),
+        {ok, [{ok, PrevDoc}]} = couch_db:open_doc_revs(Db, DelDoc#doc.id, [{RevPos-1, PrevRev}], []),
+        {ok, PrevDoc};
     _ ->
         couch_db:open_doc(Db, DI, [])
     end,
