@@ -53,8 +53,24 @@ update(Pid, Id, Geom) ->
 % gen_server functions.
 
 init({DbName, Index}) ->
-    process_flag(trap_exit, true),        
-    case open_index(DbName, Index) of
+    process_flag(trap_exit, true),  
+    Crs = try
+        case mem3_shards:config_for_db(DbName) of 
+        {ok, not_found} ->
+            "urn:ogc:def:crs:EPSG::4326";
+        {ok, Config} -> 
+            case lists:keyfind(srs, 1, Config) of 
+            {srs, Srs} ->
+                Srs;
+            false ->
+                "urn:ogc:def:crs:EPSG::4326"
+            end
+         end
+    catch _:_ ->
+        "urn:ogc:def:crs:EPSG::4326"
+    end,
+
+    case open_index(DbName, Index#index{crs=Crs}) of
         {ok, Pid, Idx, Seq, FlushSeq} ->
             State=#state{
               dbname=DbName,
@@ -269,8 +285,13 @@ handle_call(delete_index, _From, #state{index_h={dbname=DbName,
     {reply, ok};
 
 handle_call({update, Id, Geom}, _From, State = #state{index_h=Idx}) -> 
-    {reply, erl_spatial:index_insert(Idx, Id, Geom), 
-          State}.
+    case Reply = erl_spatial:index_insert(Idx, Id, Geom) of 
+    ok ->
+      erl_spatial:index_flush(Idx),
+      {reply, Reply, State};
+    _ ->
+       {reply, Reply, State}
+    end.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -331,15 +352,15 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % private functions.
-open_index(DbName, #index{sig=Sig, limit=_Limit}) ->
+open_index(DbName, #index{sig=Sig, limit=Limit}) ->
     FileName = get_filename(DbName, Sig), 
     case filelib:ensure_dir(FileName) of 
     ok ->
-        % case erl_spatial:index_create([{?IDX_STORAGE, ?IDX_DISK}, 
-        %     {?IDX_FILENAME, binary_to_list(FileName)}, 
-        %     {?IDX_RESULTLIMIT, Limit},
-        %     {?IDX_OVERWRITE, 0}]) of 
-        case erl_spatial:index_create() of
+        case erl_spatial:index_create([{?IDX_STORAGE, ?IDX_DISK}, 
+            {?IDX_FILENAME, binary_to_list(FileName)}, 
+            {?IDX_RESULTLIMIT, Limit},
+            {?IDX_OVERWRITE, 0}]) of 
+        % case erl_spatial:index_create() of
           {ok, Idx} ->
             case get_seq(get_priv_filename(DbName, Sig)) of
               {ok, Seq} ->
