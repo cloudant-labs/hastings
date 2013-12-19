@@ -57,29 +57,46 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
     couch_task_status:update([{changes_done, I}, {progress, (I * 100) div Total}]),
     DI = couch_doc:to_doc_info(FDI),
     #doc_info{id=Id, revs=[#rev_info{deleted=Del}|_]} = DI,
-    {ok, Doc} = case Del of 
-    true ->
-        % open last doc of tree before deletion
-        {ok, #doc{revs = {RevPos, [_, PrevRev|_]}} = DelDoc} = couch_db:open_doc(Db, FDI, [deleted]),
-        {ok, [{ok, PrevDoc}]} = couch_db:open_doc_revs(Db, DelDoc#doc.id, [{RevPos-1, PrevRev}], []),
-        {ok, PrevDoc};
-    _ ->
-        couch_db:open_doc(Db, DI, [])
+
+    Options = case Del of
+        true ->
+            [deleted];
+        _ ->
+            []
     end,
-    
-    Json = couch_doc:to_json_obj(Doc, []),
-    case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
-    [[]] ->
-        ok;
-    [[[Geom | _Options]]] ->
-        case Del of 
-            true ->
-                ok = hastings_index:delete(IndexPid, Id, Geom);
-            false ->
-                % TODO geometry might change, as a revision changes, delete the previous
-                % id/geom from the spatial index - nb this will be fixed with a tpr-tree
-                % TODO delete previous revision
-                ok = hastings_index:update(IndexPid, Id, Geom)
-        end
+
+    case couch_db:open_doc(Db, FDI, Options) of 
+        {ok, #doc{revs = {1, _}}} ->
+            % no previous revisions to delete from spatialindex
+            {ok, Doc} = couch_db:open_doc(Db, DI, []),
+            Json = couch_doc:to_json_obj(Doc, []),
+            case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
+                [[]] ->
+                    ok;
+                [[[Geom | _]]] ->
+                    ok = hastings_index:update(IndexPid, Id, Geom)
+            end;
+        {ok, #doc{revs = {RevPos, [_, PrevRev|_]}} = OldDoc} ->
+            {ok, [{ok, PrevDoc}]} = couch_db:open_doc_revs(Db, OldDoc#doc.id, [{RevPos-1, PrevRev}], []),
+            PrevJson = couch_doc:to_json_obj(PrevDoc, []),
+            case proc_prompt(Proc, [<<"st_index_doc">>, PrevJson]) of
+                [[]] ->
+                    ok;
+                [[[PrevGeom | _]]] ->
+                    ok = hastings_index:delete(IndexPid, Id, PrevGeom)
+            end,
+            case Del of
+                true ->
+                    ok;
+                _ ->
+                    {ok, Doc} = couch_db:open_doc(Db, DI, []),
+                    Json = couch_doc:to_json_obj(Doc, []),
+                    case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
+                        [[]] ->
+                            ok;
+                        [[[Geom | _]]] ->
+                            ok = hastings_index:update(IndexPid, Id, Geom)
+                    end
+            end
     end,
     {ok, setelement(1, Acc, I + 1)}.
