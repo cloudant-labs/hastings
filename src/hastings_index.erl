@@ -244,7 +244,7 @@ handle_call({search, QueryArgs}, _From,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
     Reply = case BBox of 
       [MinX, MinY, MaxX, MaxY] ->
-          case erl_spatial:index_intersects(Idx,
+          case erl_spatial:index_intersects_mbr(Idx,
             {MinX, MinY},
             {MaxX, MaxY},
             ReqSrs, Crs
