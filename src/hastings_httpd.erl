@@ -152,6 +152,10 @@ parse_index_param("lat", Value) ->
     [{y, parse_float_param(Value)}];
 parse_index_param("lon", Value) ->
     [{x, parse_float_param(Value)}];
+parse_index_param("y", Value) ->
+    [{y, parse_float_param(Value)}];
+parse_index_param("x", Value) ->
+    [{x, parse_float_param(Value)}];
 parse_index_param("limit", Value) ->
     [{limit, parse_positive_int_param(Value)}];
 parse_index_param("stale", "ok") ->
