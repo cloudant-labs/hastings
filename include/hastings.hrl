@@ -7,6 +7,8 @@
     def_lang,
     crs=undefined,
     name,
+    type,
+    dimension,
     limit=200,
     sig=nil
 }).
@@ -41,6 +43,10 @@
 -define(IDX_OVERWRITE, 13).
 -define(IDX_FILENAME, 20).
 -define(IDX_RESULTLIMIT, 24).
+-define(IDX_INDEXTYPE, 0).
+-define(IDX_RTREE, 0).
+-define(IDX_TPRTREE, 2).
+-define(IDX_DIMENSION, 1).
 
 -define(IDX_STORAGE, 3).
 -define(IDX_DISK, 1).

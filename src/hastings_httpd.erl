@@ -134,11 +134,14 @@ validate_index_query(extra, _Value, Args) ->
 parse_index_param("", _) ->
     [];
 parse_index_param("bbox", Value) ->
-    [MinX, MinY, MaxX, MaxY] = string:tokens(Value, ","),
-    [{bbox, [parse_float_param(MinX),
-             parse_float_param(MinY),
-             parse_float_param(MaxX),
-             parse_float_param(MaxY)]}];
+    Vals = string:tokens(Value, ","),
+    case length(Vals) rem 2 of
+    0 ->
+        [{bbox, [parse_float_param(V)|| V <- Vals]}];
+    _ ->
+        Msg = io_lib:format("Invalid value for bbox parameter: ~p", [Vals]),
+        throw({query_parse_error, ?l2b(Msg)})
+    end;
 parse_index_param("g", Value) ->
     [{g, Value}];    
 parse_index_param("relation", Value) ->

@@ -54,6 +54,7 @@ update(Pid, Id, Geom) ->
 
 init({DbName, Index}) ->
     process_flag(trap_exit, true),  
+    % Crs is defined at the database level
     Crs = try
         case mem3_shards:config_for_db(DbName) of 
         {ok, not_found} ->
@@ -74,7 +75,7 @@ init({DbName, Index}) ->
         {ok, Pid, Idx, Seq, FlushSeq} ->
             State=#state{
               dbname=DbName,
-              index=Index#index{current_seq=Seq, dbname=DbName, flush_seq=FlushSeq},
+              index=Index#index{crs=Crs, current_seq=Seq, dbname=DbName, flush_seq=FlushSeq},
               index_pid=Pid,
               index_h = Idx
              },
@@ -242,20 +243,16 @@ handle_call({search, QueryArgs}, _From,
         srs=ReqSrs
     } = QueryArgs,    
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
-    Reply = case BBox of 
-      [MinX, MinY, MaxX, MaxY] ->
-          case erl_spatial:index_intersects_mbr(Idx,
-            {MinX, MinY},
-            {MaxX, MaxY},
-            ReqSrs, Crs
-          ) of
-          {ok, Hits} ->
-            {ok, #docs{total_hits=length(Hits), hits=Hits}};
-          R ->
-            R
-          end;
-      _ ->
-        {ok, #docs{total_hits=0, hits=[]}}
+    % Z, M support
+    {Min, Max} = lists:split(length(BBox) div 2, BBox),
+    Reply = case erl_spatial:index_intersects_mbr(Idx,
+        list_to_tuple(Min),
+        list_to_tuple(Max),
+        ReqSrs, Crs) of
+      {ok, Hits} ->
+        {ok, #docs{total_hits=length(Hits), hits=Hits}};
+      R ->
+        R
     end,
     {reply, Reply, State};
 
@@ -352,15 +349,22 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 % private functions.
-open_index(DbName, #index{sig=Sig, limit=Limit}) ->
+open_index(DbName, #index{sig=Sig, limit=Limit, type=Type, dimension=Dims}) ->
     FileName = get_filename(DbName, Sig), 
+    IndexType = case Type of 
+      tprtree ->
+        ?IDX_TPRTREE;
+      _ ->
+        ?IDX_RTREE
+    end,
     case filelib:ensure_dir(FileName) of 
     ok ->
         case erl_spatial:index_create([{?IDX_STORAGE, ?IDX_DISK}, 
             {?IDX_FILENAME, binary_to_list(FileName)}, 
             {?IDX_RESULTLIMIT, Limit},
+            {?IDX_INDEXTYPE, IndexType},
+            {?IDX_DIMENSION, Dims},
             {?IDX_OVERWRITE, 0}]) of 
-        % case erl_spatial:index_create() of
           {ok, Idx} ->
             case get_seq(get_priv_filename(DbName, Sig)) of
               {ok, Seq} ->
@@ -375,7 +379,6 @@ open_index(DbName, #index{sig=Sig, limit=Limit}) ->
     Error ->
         Error
     end.
-
 
 get_path(DbName) ->
     filename:join([config:get("couchdb", "view_index_dir"), DbName]).
@@ -400,23 +403,27 @@ put_seq(FileName, Seq) ->
     file:write_file(FileName, io_lib:fwrite("~pq.\n",[[{seq, Seq}]])).
 
 design_doc_to_index(#doc{id=Id,body={Fields}}, IndexName) ->
+    % crs is defined at the database level
+    % type and dimension part of the design doc.
     Language = couch_util:get_value(<<"language">>, Fields, <<"javascript">>),
     {RawIndexes} = couch_util:get_value(<<"indexes">>, Fields, {[]}),
     case lists:keyfind(IndexName, 1, RawIndexes) of
         false ->
             {error, {not_found, <<IndexName/binary, " not found.">>}};
         {IndexName, {Index}} ->
-            % if the Crs or design doc changes then it is a different index
-            Crs = couch_util:get_value(<<"crs">>, Index, ?WGS84_LL),
+            % if the design doc, type and dimension changes then it is a different index
             Def = couch_util:get_value(<<"index">>, Index),
-            Limit = list_to_integer(couch_util:get_value(<<"limit">>, Index, "200")),
-            Sig = ?l2b(couch_util:to_hex(couch_util:md5(term_to_binary({Crs, Def})))),
+            Type = list_to_atom(?b2l(couch_util:get_value(<<"type">>, Index, <<"rtree">>))),
+            Dims = couch_util:get_value(<<"dimension">>, Index, 2),
+            Limit = couch_util:get_value(<<"limit">>, Index, 200),
+            Sig = ?l2b(couch_util:to_hex(couch_util:md5(term_to_binary({Id, Def, Type, Dims})))),
             {ok, #index{
                ddoc_id=Id,
                def=Def,
                def_lang=Language,
                name=IndexName,
-               crs=Crs,
+               type=Type,
+               dimension=Dims,
                limit=Limit,
                sig=Sig}}
     end.
