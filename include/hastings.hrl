@@ -28,7 +28,8 @@
     startIndex=0,
     currentPage=0,
     srs=0,
-    responseSrs=0
+    responseSrs=0,
+    nearest=false
 }).
 
 -record(docs, {

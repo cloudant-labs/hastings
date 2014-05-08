@@ -61,7 +61,7 @@ handle_message({ok, #docs{hits=Hits}=NewDocs0}, Shard, #state{docs=Docs}=State) 
     nil ->
         C1 = fabric_dict:store(Shard, ok, State#state.counters),
         C2 = fabric_view:remove_overlapping_shards(Shard, C1),
-        
+
         MergedDocs = merge_docs(Docs, NewDocs),
 
         State1 = State#state{

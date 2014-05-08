@@ -23,7 +23,7 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
         include_docs = IncludeDocs
     } = parse_index_params(Req),
     % check we have at least one of radius, wkt, bbox or ellipse
-    case (BBox == undefined ) and (Wkt == undefined) and 
+    case (BBox == undefined ) and (Wkt == undefined) and
         ((Radius == undefined) and (X == undefined) and (Y == undefined)) and
         ((EllipseX == undefined) and (EllipseY == undefined) and (X == undefined) and (Y == undefined)) of
     true ->
@@ -33,28 +33,28 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
         ok
     end,
 
-    % look at geojson spec to see how to add TotalHits
-    case page_results(DbName, DDoc, IndexName, QueryArgs, 0, 0, []) of 
+    % TODO look at geojson spec to see how to add TotalHits
+    case page_results(DbName, DDoc, IndexName, QueryArgs, 0, 0, []) of
     {ok, _TotalHits, Hits0} ->
         Hits = [
             begin
-                case IncludeDocs of 
+                case IncludeDocs of
                 true ->
-                    Body = case fabric:open_doc(DbName, Id, []) of 
-                    {ok, Doc} -> 
+                    Body = case fabric:open_doc(DbName, Id, []) of
+                    {ok, Doc} ->
                         {Resp} = Doc#doc.body,
                         Resp;
                     {not_found, _} -> null
                     end,
-                    case lists:keyfind(<<"type">>, 1, Body) of 
-                    false -> 
+                    case lists:keyfind(<<"type">>, 1, Body) of
+                    false ->
                         {[{type, <<"Feature">>}, {id, Id} | Body]};
                     _ ->
                         {[{id, Id} | Body]}
                     end;
                 false ->
                     {[{id, Id}]}
-                end 
+                end
             end || {Id, _} <- Hits0
         ],
         send_json(Req, 200, {[
@@ -105,7 +105,7 @@ validate_index_query(bbox, Value, Args) ->
 validate_index_query(g, Value, Args) ->
     Args#index_query_args{wkt=Value};
 validate_index_query(relation, Value, Args) ->
-    Args#index_query_args{relation=Value};    
+    Args#index_query_args{relation=Value};
 validate_index_query(radius, Value, Args) ->
     Args#index_query_args{radius=Value};
 validate_index_query(y, Value, Args) ->
@@ -123,11 +123,13 @@ validate_index_query(startIndex, Value, Args) ->
 validate_index_query(srs, Value, Args) ->
     Args#index_query_args{srs=Value};
 validate_index_query(responseSrs, Value, Args) ->
-    Args#index_query_args{responseSrs=Value};  
+    Args#index_query_args{responseSrs=Value};
 validate_index_query(range_x, Value, Args)->
     Args#index_query_args{range_x=Value};
 validate_index_query(range_y, Value, Args)->
     Args#index_query_args{range_y=Value};
+validate_index_query(nearest, Value, Args)->
+    Args#index_query_args{nearest=Value};
 validate_index_query(extra, _Value, Args) ->
     Args.
 
@@ -143,7 +145,7 @@ parse_index_param("bbox", Value) ->
         throw({query_parse_error, ?l2b(Msg)})
     end;
 parse_index_param("g", Value) ->
-    [{g, Value}];    
+    [{g, Value}];
 parse_index_param("relation", Value) ->
     [{relation, Value}];
 parse_index_param("radius", Value) ->
@@ -174,6 +176,8 @@ parse_index_param("rangex", Value) ->
     [{range_x, parse_float_param(Value)}];
 parse_index_param("rangey", Value) ->
     [{range_y, parse_float_param(Value)}];
+parse_index_param("nearest", Value) ->
+    [{nearest, parse_bool_param(Value)}];
 parse_index_param(Key, Value) ->
     [{extra, {Key, Value}}].
 
@@ -197,7 +201,7 @@ parse_float_param(Val) ->
     case string:to_float(Val) of
     {error,no_float} -> list_to_integer(Val);
     {F,_Rest} -> F
-    end.    
+    end.
 
 parse_positive_int_param(Val) ->
     MaximumVal = list_to_integer(
@@ -218,24 +222,31 @@ parse_positive_int_param(Val) ->
 page_results(DbName, DDoc, IndexName, #index_query_args{
         limit=Limit,
         startIndex=StartIndex,
-        currentPage=CurrentPage
+        currentPage=CurrentPage,
+        nearest=Nearest
     } = QueryArgs, CurrentIndex, TotalHits, HitsAcc) ->
-    case (CurrentIndex + TotalHits) > StartIndex of 
+    case (CurrentIndex + TotalHits) > StartIndex of
     true ->
-        % stop here, we have gone past the index point, 
+        % stop here, we have gone past the index point,
         % result limit should always be less than page limit
         % note not an error to go over list length with sublist
-        Hits0 = lists:sublist(lists:keysort(1, HitsAcc), StartIndex + 1, Limit),
+        Hits0 = case Nearest of
+          true ->
+            % TODO sort by nearest
+            HitsAcc;
+          _ ->
+            lists:sublist(lists:keysort(1, HitsAcc), StartIndex + 1, Limit)
+        end,
         {ok, length(Hits0), Hits0};
     _ ->
-        case hastings_fabric_search:go(DbName, DDoc, IndexName, QueryArgs) of 
+        case hastings_fabric_search:go(DbName, DDoc, IndexName, QueryArgs) of
             {ok, 0, _} ->
                {ok, 0, HitsAcc};
-            {ok, TotalHits0, Hits0} ->  
-                case CurrentPage rem 2 of 
-                0 -> 
+            {ok, TotalHits0, Hits0} ->
+                case CurrentPage rem 2 of
+                0 ->
                     page_results(DbName, DDoc, IndexName, QueryArgs#index_query_args{currentPage=CurrentPage + 1}, CurrentIndex + TotalHits0,
-                    TotalHits0, HitsAcc ++ Hits0); % lists:sublist([HitsAcc | Hits0], StartIndex - CurrentIndex));
+                    TotalHits0, HitsAcc ++ Hits0);
                 _ ->
                     page_results(DbName, DDoc, IndexName, QueryArgs#index_query_args{currentPage=CurrentPage + 1}, CurrentIndex + TotalHits0,
                     TotalHits0, HitsAcc ++ Hits0)
@@ -244,7 +255,3 @@ page_results(DbName, DDoc, IndexName, #index_query_args{
                 Error
         end
     end.
-    
-
-    
-

@@ -8,7 +8,7 @@
 
 
 % public api.
--export([start_link/2, design_doc_to_index/2, 
+-export([start_link/2, design_doc_to_index/2,
         await/2, search/2, info/1, update_seq/2, delete/3, delete_index/1, update/3]).
 
 % gen_server api.
@@ -53,39 +53,39 @@ update(Pid, Id, Geom) ->
 % gen_server functions.
 
 init({DbName, Index}) ->
-    process_flag(trap_exit, true),  
-    % Crs is defined at the database level
-    Crs = try
-        case mem3_shards:config_for_db(DbName) of 
-        {ok, not_found} ->
-            "urn:ogc:def:crs:EPSG::4326";
-        {ok, Config} -> 
-            case lists:keyfind(srs, 1, Config) of 
-            {srs, Srs} ->
-                Srs;
-            false ->
-                "urn:ogc:def:crs:EPSG::4326"
-            end
-         end
-    catch _:_ ->
-        "urn:ogc:def:crs:EPSG::4326"
-    end,
+  process_flag(trap_exit, true),
+  % Crs is defined at the database level
+  Crs = try
+      case mem3_shards:config_for_db(DbName) of
+      {ok, not_found} ->
+          "urn:ogc:def:crs:EPSG::4326";
+      {ok, Config} ->
+          case lists:keyfind(srs, 1, Config) of
+          {srs, Srs} ->
+              Srs;
+          false ->
+              "urn:ogc:def:crs:EPSG::4326"
+          end
+       end
+  catch _:_ ->
+      "urn:ogc:def:crs:EPSG::4326"
+  end,
 
-    case open_index(DbName, Index#index{crs=Crs}) of
-        {ok, Pid, Idx, Seq, FlushSeq} ->
-            State=#state{
-              dbname=DbName,
-              index=Index#index{crs=Crs, current_seq=Seq, dbname=DbName, flush_seq=FlushSeq},
-              index_pid=Pid,
-              index_h = Idx
-             },
-            {ok, Db} = couch_db:open_int(DbName, []),
-            try couch_db:monitor(Db) after couch_db:close(Db) end,
-            proc_lib:init_ack({ok, self()}),
-            gen_server:enter_loop(?MODULE, [], State);
-        Error ->
-            proc_lib:init_ack(Error)
-    end.
+  case open_index(DbName, Index#index{crs=Crs}) of
+    {ok, Pid, Idx, Seq, FlushSeq} ->
+        State=#state{
+          dbname=DbName,
+          index=Index#index{crs=Crs, current_seq=Seq, dbname=DbName, flush_seq=FlushSeq},
+          index_pid=Pid,
+          index_h = Idx
+         },
+        {ok, Db} = couch_db:open_int(DbName, []),
+        try couch_db:monitor(Db) after couch_db:close(Db) end,
+        proc_lib:init_ack({ok, self()}),
+        gen_server:enter_loop(?MODULE, [], State);
+    Error ->
+        proc_lib:init_ack(Error)
+  end.
 
 handle_call({await, RequestSeq}, From,
             #state{
@@ -107,7 +107,7 @@ handle_call({await, RequestSeq}, From, #state{waiting_list=WaitList}=State) ->
         waiting_list=[{From,RequestSeq}|WaitList]
     }};
 
-handle_call({search, #index_query_args{bbox=undefined, wkt=undefined, 
+handle_call({search, #index_query_args{bbox=undefined, nearest=false, wkt=undefined,
       range_x=undefined, range_y=undefined, limit=ResultLimit}=QueryArgs},
       _From, State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
@@ -119,8 +119,8 @@ handle_call({search, #index_query_args{bbox=undefined, wkt=undefined,
         currentPage = CurrentPage
     } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
-    
-    ResultSet = case Relation of 
+
+    ResultSet = case Relation of
       "contains" ->
         erl_spatial:index_contains(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "disjoint" ->
@@ -138,20 +138,20 @@ handle_call({search, #index_query_args{bbox=undefined, wkt=undefined,
       "touches" ->
         erl_spatial:index_touches(Idx, {X, Y, Radius}, ReqSrs, Crs);
       "within" ->
-        erl_spatial:index_within(Idx, {X, Y, Radius}, ReqSrs, Crs);  
+        erl_spatial:index_within(Idx, {X, Y, Radius}, ReqSrs, Crs);
       _ ->
         erl_spatial:index_intersects(Idx, {X, Y, Radius}, ReqSrs, Crs)
     end,
 
-    case ResultSet of 
+    case ResultSet of
     {ok, Hits} ->
       {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
     Reply ->
       {reply, Reply, State}
     end;
 
-handle_call({search, #index_query_args{bbox=undefined, range_x=undefined, range_y=undefined}=QueryArgs}, _From,
-     State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
+handle_call({search, #index_query_args{bbox=undefined, nearest=false, range_x=undefined, range_y=undefined}=QueryArgs},
+     _From, State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
         wkt = Wkt,
         relation = Relation,
@@ -160,7 +160,7 @@ handle_call({search, #index_query_args{bbox=undefined, range_x=undefined, range_
         limit=ResultLimit
     } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
-    ResultSet = case Relation of 
+    ResultSet = case Relation of
       "contains" ->
         erl_spatial:index_contains(Idx, Wkt, ReqSrs, Crs);
       "disjoint" ->
@@ -178,19 +178,19 @@ handle_call({search, #index_query_args{bbox=undefined, range_x=undefined, range_
       "touches" ->
         erl_spatial:index_touches(Idx, Wkt, ReqSrs, Crs);
       "within" ->
-        erl_spatial:index_within(Idx, Wkt, ReqSrs, Crs);  
+        erl_spatial:index_within(Idx, Wkt, ReqSrs, Crs);
       _ ->
         erl_spatial:index_intersects(Idx, Wkt, ReqSrs, Crs)
     end,
 
-    case ResultSet of 
+    case ResultSet of
     {ok, Hits} ->
       {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
     Reply ->
       {reply, Reply, State}
     end;
 
-handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
+handle_call({search, #index_query_args{bbox=undefined, nearest=false}=QueryArgs}, _From,
      State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
         range_x=RangeX,
@@ -204,7 +204,7 @@ handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
     } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
 
-    ResultSet = case Relation of 
+    ResultSet = case Relation of
       "contains" ->
         erl_spatial:index_contains(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "disjoint" ->
@@ -222,26 +222,48 @@ handle_call({search, #index_query_args{bbox=undefined}=QueryArgs}, _From,
       "touches" ->
         erl_spatial:index_touches(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       "within" ->
-        erl_spatial:index_within(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);  
+        erl_spatial:index_within(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs);
       _ ->
         erl_spatial:index_intersects(Idx, {X, Y, RangeX, RangeY}, ReqSrs, Crs)
     end,
 
-    case ResultSet of 
+    case ResultSet of
     {ok, Hits} ->
       {reply, {ok, #docs{total_hits=length(Hits), hits=Hits}}, State};
     Reply ->
       {reply, Reply, State}
     end;
 
-handle_call({search, QueryArgs}, _From, 
+handle_call({search, #index_query_args{nearest=true}=QueryArgs}, _From,
       State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
         bbox = BBox,
         currentPage = CurrentPage,
         limit=ResultLimit,
         srs=ReqSrs
-    } = QueryArgs,    
+    } = QueryArgs,
+    erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
+    % Z, M support
+    {Min, Max} = lists:split(length(BBox) div 2, BBox),
+    Reply = case erl_spatial:index_nearest(Idx,
+        list_to_tuple(Min),
+        list_to_tuple(Max),
+        ReqSrs, Crs) of
+      {ok, Hits} ->
+        {ok, #docs{total_hits=length(Hits), hits=Hits}};
+      R ->
+        R
+    end,
+    {reply, Reply, State};
+
+handle_call({search, QueryArgs}, _From,
+      State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
+    #index_query_args{
+        bbox = BBox,
+        currentPage = CurrentPage,
+        limit=ResultLimit,
+        srs=ReqSrs
+    } = QueryArgs,
     erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
     % Z, M support
     {Min, Max} = lists:split(length(BBox) div 2, BBox),
@@ -256,7 +278,7 @@ handle_call({search, QueryArgs}, _From,
     end,
     {reply, Reply, State};
 
-handle_call({new_seq, Seq}, _From, 
+handle_call({new_seq, Seq}, _From,
     #state{index=#index{dbname=DbName, sig=Sig,
         flush_seq=_FlushSeq} = _Idx}=State) ->
     % when to flush index
@@ -266,7 +288,7 @@ handle_call({new_seq, Seq}, _From,
 handle_call(info, _From, State = #state{index_h=Idx}) ->
     % get bounds
     {ok, [Min, Max]} = erl_spatial:index_bounds(Idx),
-    {ok, DocCount} = erl_spatial:index_intersects_count(Idx, 
+    {ok, DocCount} = erl_spatial:index_intersects_count(Idx,
                                               Min, Max),
     {reply, [{ok, [{doc_count, DocCount}]}], State};
 
@@ -281,8 +303,8 @@ handle_call(delete_index, _From, #state{index_h={dbname=DbName,
     file:delete(PrivFileName),
     {reply, ok};
 
-handle_call({update, Id, Geom}, _From, State = #state{index_h=Idx}) -> 
-    case Reply = erl_spatial:index_insert(Idx, Id, Geom) of 
+handle_call({update, Id, Geom}, _From, State = #state{index_h=Idx}) ->
+    case Reply = erl_spatial:index_insert(Idx, Id, Geom) of
     ok ->
       erl_spatial:index_flush(Idx),
       {reply, Reply, State};
@@ -350,21 +372,21 @@ code_change(_OldVsn, State, _Extra) ->
 
 % private functions.
 open_index(DbName, #index{sig=Sig, limit=Limit, type=Type, dimension=Dims}) ->
-    FileName = get_filename(DbName, Sig), 
-    IndexType = case Type of 
+    FileName = get_filename(DbName, Sig),
+    IndexType = case Type of
       tprtree ->
         ?IDX_TPRTREE;
       _ ->
         ?IDX_RTREE
     end,
-    case filelib:ensure_dir(FileName) of 
+    case filelib:ensure_dir(FileName) of
     ok ->
-        case erl_spatial:index_create([{?IDX_STORAGE, ?IDX_DISK}, 
-            {?IDX_FILENAME, binary_to_list(FileName)}, 
+        case erl_spatial:index_create([{?IDX_STORAGE, ?IDX_DISK},
+            {?IDX_FILENAME, binary_to_list(FileName)},
             {?IDX_RESULTLIMIT, Limit},
             {?IDX_INDEXTYPE, IndexType},
             {?IDX_DIMENSION, Dims},
-            {?IDX_OVERWRITE, 0}]) of 
+            {?IDX_OVERWRITE, 0}]) of
           {ok, Idx} ->
             case get_seq(get_priv_filename(DbName, Sig)) of
               {ok, Seq} ->
@@ -372,7 +394,7 @@ open_index(DbName, #index{sig=Sig, limit=Limit, type=Type, dimension=Dims}) ->
                 {ok, self(), Idx, Seq, FlushSeq};
               Error ->
                 Error
-            end; 
+            end;
           Error ->
             Error
         end;
@@ -384,14 +406,14 @@ get_path(DbName) ->
     filename:join([config:get("couchdb", "view_index_dir"), DbName]).
 
 get_filename(DbName, Sig) ->
-  filename:join([get_path(DbName), <<Sig/binary, ".geo">>]). 
+  filename:join([get_path(DbName), <<Sig/binary, ".geo">>]).
 
 get_priv_filename(DbName, Sig) ->
   FileName = get_filename(DbName, Sig),
   <<FileName/binary, ".geopriv">>.
 
 get_seq(FileName) ->
-    case file:consult(FileName) of 
+    case file:consult(FileName) of
         {ok, Terms} ->
             {ok, proplists:get_value(seq, Terms, 0)};
         _ ->
