@@ -256,7 +256,7 @@ handle_call({search, #index_query_args{nearest=true}=QueryArgs}, _From,
     end,
     {reply, Reply, State};
 
-handle_call({search, QueryArgs}, _From,
+handle_call({search, QueryArgs=#index_query_args{tStart=undefined, tEnd=undefined}}, _From,
       State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
     #index_query_args{
         bbox = BBox,
@@ -278,6 +278,31 @@ handle_call({search, QueryArgs}, _From,
     end,
     {reply, Reply, State};
 
+handle_call({search, QueryArgs}, _From,
+      State = #state{index_h=Idx, index=#index{crs=Crs}}) ->
+    #index_query_args{
+        bbox = BBox,
+        currentPage = CurrentPage,
+        limit=ResultLimit,
+        srs=ReqSrs,
+        tStart=Start,
+        tEnd=End
+    } = QueryArgs,
+    erl_spatial:index_set_resultset_offset(Idx, CurrentPage * ResultLimit),
+    {Min, Max} = lists:split(length(BBox) div 2, BBox),
+    Reply = case erl_spatial:intersects_mbr(Idx,
+        list_to_tuple(Min),
+        list_to_tuple(Max),
+        Start, End,
+        ReqSrs, Crs) of
+      {ok, Hits} ->
+        {ok, #docs{total_hits=length(Hits), hits=Hits}};
+      R ->
+        R
+    end,
+    {reply, Reply, State};
+
+
 handle_call({new_seq, Seq}, _From,
     #state{index=#index{dbname=DbName, sig=Sig,
         flush_seq=_FlushSeq} = _Idx}=State) ->
@@ -292,6 +317,18 @@ handle_call(info, _From, State = #state{index_h=Idx}) ->
                                               Min, Max),
     {reply, [{ok, [{doc_count, DocCount}]}], State};
 
+handle_call({delete, Id, {Val}}, _From, State = #state{index_h=Idx, index=#index{type=tprtree}}) ->
+    MinV = couch_util:get_value(<<"lowV">>, Val, []),
+    MaxV = couch_util:get_value(<<"maxV">>, Val, []),
+    Start = couch_util:get_value(<<"start">>, Val, 0),
+    End = couch_util:get_value(<<"end">>, Val, 0),
+    Type = couch_util:get_value(<<"type">>, Val, []),
+    Coords = couch_util:get_value(<<"coordinates">>, Val, []),
+    Geom = {[{<<"type">>, Type},
+             {<<"coordinates">>, Coords}
+            ]},
+    {reply, erl_spatial:index_delete(Idx, Id, Geom, MinV, MaxV, Start, End), State};
+
 handle_call({delete, Id, Geom}, _From, State = #state{index_h=Idx}) ->
     {reply, erl_spatial:index_delete(Idx, Id, Geom), State};
 
@@ -302,6 +339,24 @@ handle_call(delete_index, _From, #state{index_h={dbname=DbName,
     PrivFileName = get_priv_filename(DbName, Sig),
     file:delete(PrivFileName),
     {reply, ok};
+
+handle_call({update, Id, {Val}}, _From, State = #state{index_h=Idx, index=#index{type=tprtree}}) ->
+    MinV = couch_util:get_value(<<"lowV">>, Val, []),
+    MaxV = couch_util:get_value(<<"maxV">>, Val, []),
+    Start = couch_util:get_value(<<"start">>, Val, 0),
+    End = couch_util:get_value(<<"end">>, Val, 0),
+    Type = couch_util:get_value(<<"type">>, Val, []),
+    Coords = couch_util:get_value(<<"coordinates">>, Val, []),
+    Geom = {[{<<"type">>, Type},
+             {<<"coordinates">>, Coords}
+            ]},
+    case Reply = erl_spatial:index_insert(Idx, Id, Geom, MinV, MaxV, Start, End) of
+      ok ->
+        erl_spatial:index_flush(Idx),
+        {reply, Reply, State};
+      _ ->
+        {reply, Reply, State}
+    end;
 
 handle_call({update, Id, Geom}, _From, State = #state{index_h=Idx}) ->
     case Reply = erl_spatial:index_insert(Idx, Id, Geom) of

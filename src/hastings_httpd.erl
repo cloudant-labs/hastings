@@ -130,6 +130,10 @@ validate_index_query(range_y, Value, Args)->
     Args#index_query_args{range_y=Value};
 validate_index_query(nearest, Value, Args)->
     Args#index_query_args{nearest=Value};
+validate_index_query(tStart, Value, Args)->
+    Args#index_query_args{tStart=Value};
+validate_index_query(tEnd, Value, Args)->
+    Args#index_query_args{tEnd=Value};
 validate_index_query(extra, _Value, Args) ->
     Args.
 
@@ -178,6 +182,10 @@ parse_index_param("rangey", Value) ->
     [{range_y, parse_float_param(Value)}];
 parse_index_param("nearest", Value) ->
     [{nearest, parse_bool_param(Value)}];
+parse_index_param("start", Value) ->
+    [{tStart, parse_float_param(Value)}];
+parse_index_param("end", Value) ->
+    [{tEnd, parse_float_param(Value)}];
 parse_index_param(Key, Value) ->
     [{extra, {Key, Value}}].
 

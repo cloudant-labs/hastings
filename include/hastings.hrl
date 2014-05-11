@@ -29,7 +29,9 @@
     currentPage=0,
     srs=0,
     responseSrs=0,
-    nearest=false
+    nearest=false,
+    tStart=undefined,
+    tEnd=undefined
 }).
 
 -record(docs, {

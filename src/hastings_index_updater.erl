@@ -65,7 +65,7 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
             []
     end,
 
-    case couch_db:open_doc(Db, FDI, Options) of 
+    case couch_db:open_doc(Db, FDI, Options) of
         {ok, #doc{revs = {1, _}}} ->
             % no previous revisions to delete from spatialindex
             {ok, Doc} = couch_db:open_doc(Db, DI, []),
@@ -73,8 +73,8 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
             case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
                 [[]] ->
                     ok;
-                [[[Geom | _]]] ->
-                    ok = hastings_index:update(IndexPid, Id, Geom)
+                [[[Val | _]]] ->
+                    ok = hastings_index:update(IndexPid, Id, Val)
             end;
         {ok, #doc{revs = {RevPos, [_, PrevRev|_]}} = OldDoc} ->
             {ok, [{ok, PrevDoc}]} = couch_db:open_doc_revs(Db, OldDoc#doc.id, [{RevPos-1, PrevRev}], []),
@@ -82,8 +82,8 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
             case proc_prompt(Proc, [<<"st_index_doc">>, PrevJson]) of
                 [[]] ->
                     ok;
-                [[[PrevGeom | _]]] ->
-                    ok = hastings_index:delete(IndexPid, Id, PrevGeom)
+                [[[PrevVal | _]]] ->
+                    ok = hastings_index:delete(IndexPid, Id, PrevVal)
             end,
             case Del of
                 true ->
@@ -94,8 +94,8 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
                     case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
                         [[]] ->
                             ok;
-                        [[[Geom | _]]] ->
-                            ok = hastings_index:update(IndexPid, Id, Geom)
+                        [[[Val | _]]] ->
+                            ok = hastings_index:update(IndexPid, Id, Val)
                     end
             end
     end,
