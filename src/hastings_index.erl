@@ -327,7 +327,8 @@ handle_call({delete, Id, {Val}}, _From, State = #state{index_h=Idx, index=#index
     Geom = {[{<<"type">>, Type},
              {<<"coordinates">>, Coords}
             ]},
-    {reply, erl_spatial:index_delete(Idx, Id, Geom, MinV, MaxV, Start, End), State};
+    {reply, erl_spatial:index_delete(Idx, Id, Geom,
+      list_to_tuple(MinV), list_to_tuple(MaxV), Start, End), State};
 
 handle_call({delete, Id, Geom}, _From, State = #state{index_h=Idx}) ->
     {reply, erl_spatial:index_delete(Idx, Id, Geom), State};
@@ -342,7 +343,7 @@ handle_call(delete_index, _From, #state{index_h={dbname=DbName,
 
 handle_call({update, Id, {Val}}, _From, State = #state{index_h=Idx, index=#index{type=tprtree}}) ->
     MinV = couch_util:get_value(<<"lowV">>, Val, []),
-    MaxV = couch_util:get_value(<<"maxV">>, Val, []),
+    MaxV = couch_util:get_value(<<"highV">>, Val, []),
     Start = couch_util:get_value(<<"start">>, Val, 0),
     End = couch_util:get_value(<<"end">>, Val, 0),
     Type = couch_util:get_value(<<"type">>, Val, []),
@@ -350,8 +351,9 @@ handle_call({update, Id, {Val}}, _From, State = #state{index_h=Idx, index=#index
     Geom = {[{<<"type">>, Type},
              {<<"coordinates">>, Coords}
             ]},
-    case Reply = erl_spatial:index_insert(Idx, Id, Geom, MinV, MaxV, Start, End) of
+    case Reply = erl_spatial:index_insert(Idx, Id, Geom, list_to_tuple(MinV), list_to_tuple(MaxV), Start, End) of
       ok ->
+        twig:log(error, "ok~n", []),
         erl_spatial:index_flush(Idx),
         {reply, Reply, State};
       _ ->
