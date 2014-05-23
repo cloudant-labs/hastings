@@ -73,8 +73,8 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
             case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
                 [[]] ->
                     ok;
-                [[[Val | _]]] ->
-                    ok = hastings_index:update(IndexPid, Id, Val)
+                [Features] ->
+                  [ok = hastings_index:update(IndexPid, Id, Val) || [Val | _] <- Features]
             end;
         {ok, #doc{revs = {RevPos, [_, PrevRev|_]}} = OldDoc} ->
             {ok, [{ok, PrevDoc}]} = couch_db:open_doc_revs(Db, OldDoc#doc.id, [{RevPos-1, PrevRev}], []),
@@ -82,8 +82,8 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
             case proc_prompt(Proc, [<<"st_index_doc">>, PrevJson]) of
                 [[]] ->
                     ok;
-                [[[PrevVal | _]]] ->
-                    ok = hastings_index:delete(IndexPid, Id, PrevVal)
+                [PrevFeatures] ->
+                  [ok = hastings_index:delete(IndexPid, Id, PrevVal) || [PrevVal | _] <- PrevFeatures]
             end,
             case Del of
                 true ->
@@ -94,8 +94,8 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
                     case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
                         [[]] ->
                             ok;
-                        [[[Val | _]]] ->
-                            ok = hastings_index:update(IndexPid, Id, Val)
+                        [Features] ->
+                          [ok = hastings_index:update(IndexPid, Id, Val) || [Val | _] <- Features]
                     end
             end
     end,
