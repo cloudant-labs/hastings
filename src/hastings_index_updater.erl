@@ -79,7 +79,21 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
         {ok, #doc{revs = {RevPos, [_, PrevRev|_]}} = OldDoc} ->
             case couch_db:open_doc_revs(Db, OldDoc#doc.id, [{RevPos-1, PrevRev}], []) of
               {ok,[{{not_found,missing}, _}]} ->
-                ok;
+                % delete based on current document
+                case Del of
+                  true ->
+                    {ok, Doc} = couch_db:open_doc(Db, DI, []),
+                    Json = couch_doc:to_json_obj(Doc, []),
+                    case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
+                        [[]] ->
+                            ok;
+                        [Features] ->
+                          [hastings_index:delete(IndexPid, Id, Val) || [Val | _] <- Features],
+                          ok
+                    end;
+                  _ ->
+                    ok
+                end;
               {ok, [{ok, PrevDoc}]} ->
                 PrevJson = couch_doc:to_json_obj(PrevDoc, []),
                 case proc_prompt(Proc, [<<"st_index_doc">>, PrevJson]) of
