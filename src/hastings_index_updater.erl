@@ -77,26 +77,30 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
                   [ok = hastings_index:update(IndexPid, Id, Val) || [Val | _] <- Features]
             end;
         {ok, #doc{revs = {RevPos, [_, PrevRev|_]}} = OldDoc} ->
-            {ok, [{ok, PrevDoc}]} = couch_db:open_doc_revs(Db, OldDoc#doc.id, [{RevPos-1, PrevRev}], []),
-            PrevJson = couch_doc:to_json_obj(PrevDoc, []),
-            case proc_prompt(Proc, [<<"st_index_doc">>, PrevJson]) of
-                [[]] ->
-                    ok;
-                [PrevFeatures] ->
-                  [ok = hastings_index:delete(IndexPid, Id, PrevVal) || [PrevVal | _] <- PrevFeatures]
-            end,
-            case Del of
-                true ->
-                    ok;
-                _ ->
-                    {ok, Doc} = couch_db:open_doc(Db, DI, []),
-                    Json = couch_doc:to_json_obj(Doc, []),
-                    case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
-                        [[]] ->
-                            ok;
-                        [Features] ->
-                          [ok = hastings_index:update(IndexPid, Id, Val) || [Val | _] <- Features]
-                    end
+            case couch_db:open_doc_revs(Db, OldDoc#doc.id, [{RevPos-1, PrevRev}], []) of
+              {ok,[{{not_found,missing}, _}]} ->
+                ok;
+              {ok, [{ok, PrevDoc}]} ->
+                PrevJson = couch_doc:to_json_obj(PrevDoc, []),
+                case proc_prompt(Proc, [<<"st_index_doc">>, PrevJson]) of
+                    [[]] ->
+                        ok;
+                    [PrevFeatures] ->
+                      [ok = hastings_index:delete(IndexPid, Id, PrevVal) || [PrevVal | _] <- PrevFeatures]
+                end,
+                case Del of
+                    true ->
+                        ok;
+                    _ ->
+                        {ok, Doc} = couch_db:open_doc(Db, DI, []),
+                        Json = couch_doc:to_json_obj(Doc, []),
+                        case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
+                            [[]] ->
+                                ok;
+                            [Features] ->
+                              [ok = hastings_index:update(IndexPid, Id, Val) || [Val | _] <- Features]
+                        end
+                end
             end
     end,
     {ok, setelement(1, Acc, I + 1)}.
