@@ -7,15 +7,6 @@
 -include_lib("couch/include/couch_db.hrl").
 
 
--import(chttpd, [
-    send_method_not_allowed/2,
-    send_json/2,
-    send_json/3,
-    send_response/4,
-    send_error/2
-]).
-
-
 -export([
     handle_search_req/3,
     handle_info_req/3,
@@ -80,38 +71,38 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req,
                 end
             end || {Id, _} <- Hits0
         ],
-        send_json(Req, 200, {[
+        chttpd:send_json(Req, 200, {[
             {type, <<"FeatureCollection">>},
             {features, Hits}
         ]});
     {error, Reason} ->
-        send_error(Req, Reason);
+        chttpd:send_error(Req, Reason);
     {timeout, _} ->
-        send_error(Req, <<"Timeout in server request">>)
+        chttpd:send_error(Req, <<"Timeout in server request">>)
     end;
 
 handle_search_req(Req, _Db, _DDoc) ->
-    send_method_not_allowed(Req, "GET").
+    chttpd:send_method_not_allowed(Req, "GET").
 
 handle_info_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
                   ,#db{name=DbName}, #doc{id=Id}=DDoc) ->
     case hastings_fabric_info:go(DbName, DDoc, IndexName) of
         {ok, IndexInfoList} ->
-            send_json(Req, 200, {[
+            chttpd:send_json(Req, 200, {[
                 {name,  <<Id/binary,"/",IndexName/binary>>},
                 {search_index, {IndexInfoList}}
             ]});
         {error, Reason} ->
-            send_error(Req, Reason)
+            chttpd:send_error(Req, Reason)
     end;
 handle_info_req(Req, _Db, _DDoc) ->
-    send_method_not_allowed(Req, "GET").
+    chttpd:send_method_not_allowed(Req, "GET").
 
 handle_cleanup_req(#httpd{method='POST'}=Req, #db{name=DbName}) ->
     ok = hastings_fabric_cleanup:go(DbName),
-    send_json(Req, 202, {[{ok, true}]});
+    chttpd:send_json(Req, 202, {[{ok, true}]});
 handle_cleanup_req(Req, _Db) ->
-    send_method_not_allowed(Req, "POST").
+    chttpd:send_method_not_allowed(Req, "POST").
 
 parse_index_params(Req) when not is_list(Req) ->
     IndexParams = lists:flatmap(fun({K, V}) -> parse_index_param(K, V) end,
