@@ -1,13 +1,24 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 -module(hastings_index_updater).
+
+
 -include_lib("couch/include/couch_db.hrl").
 -include("hastings.hrl").
 
--export([update/2, load_docs/3]).
 
--import(couch_query_servers, [get_os_process/1, ret_os_process/1, proc_prompt/2]).
+-import(couch_query_servers, [
+    get_os_process/1,
+    ret_os_process/1,
+    proc_prompt/2
+]).
+
+
+-export([
+    update/2,
+    load_docs/3
+]).
+
 
 update(IndexPid, Index) ->
     #index{
@@ -43,7 +54,7 @@ update(IndexPid, Index) ->
             EnumFun = fun ?MODULE:load_docs/3,
             Acc0 = {0, IndexPid, Db, Proc, TotalChanges, now()},
 
-            {ok, _, _} = couch_db:enum_docs_since(Db, CurSeq, EnumFun, Acc0, []),
+            {ok,_,_} = couch_db:enum_docs_since(Db, CurSeq, EnumFun, Acc0, []),
             hastings_index:update_seq(IndexPid, NewCurSeq)
         after
             ret_os_process(Proc)
@@ -53,8 +64,12 @@ update(IndexPid, Index) ->
         couch_db:close(Db)
     end.
 
+
 load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
-    couch_task_status:update([{changes_done, I}, {progress, (I * 100) div Total}]),
+    couch_task_status:update([
+            {changes_done, I},
+            {progress, (I * 100) div Total}
+        ]),
     DI = couch_doc:to_doc_info(FDI),
     #doc_info{id=Id, revs=[#rev_info{deleted=Del}|_]} = DI,
 
@@ -74,29 +89,30 @@ load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
                 [[]] ->
                     ok;
                 [Features] ->
-                  [ok = hastings_index:update(IndexPid, Id, Val) || [Val | _] <- Features]
+                    [ok = hastings_index:update(IndexPid, Id, Val)
+                            || [Val | _] <- Features]
             end;
         {ok, #doc{revs = {RevPos, [_, PrevRev|_]}} = OldDoc} ->
-            {ok, [{ok, PrevDoc}]} = couch_db:open_doc_revs(Db, OldDoc#doc.id, [{RevPos-1, PrevRev}], []),
+            {ok, [{ok, PrevDoc}]} = couch_db:open_doc_revs(
+                    Db, OldDoc#doc.id, [{RevPos-1, PrevRev}], []),
             PrevJson = couch_doc:to_json_obj(PrevDoc, []),
             case proc_prompt(Proc, [<<"st_index_doc">>, PrevJson]) of
                 [[]] ->
                     ok;
                 [PrevFeatures] ->
-                  [ok = hastings_index:delete(IndexPid, Id, PrevVal) || [PrevVal | _] <- PrevFeatures]
+                    [ok = hastings_index:delete(IndexPid, Id, PrevVal)
+                            || [PrevVal | _] <- PrevFeatures]
             end,
-            case Del of
-                true ->
-                    ok;
-                _ ->
-                    {ok, Doc} = couch_db:open_doc(Db, DI, []),
-                    Json = couch_doc:to_json_obj(Doc, []),
-                    case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
-                        [[]] ->
-                            ok;
-                        [Features] ->
-                          [ok = hastings_index:update(IndexPid, Id, Val) || [Val | _] <- Features]
-                    end
+            if Del == true -> ok; true ->
+                {ok, Doc} = couch_db:open_doc(Db, DI, []),
+                Json = couch_doc:to_json_obj(Doc, []),
+                case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
+                    [[]] ->
+                        ok;
+                    [Features] ->
+                        [ok = hastings_index:update(IndexPid, Id, Val)
+                                || [Val | _] <- Features]
+                end
             end
     end,
     {ok, setelement(1, Acc, I + 1)}.

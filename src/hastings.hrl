@@ -5,7 +5,7 @@
     ddoc_id,
     def,
     def_lang,
-    crs=undefined,
+    crs,
     name,
     type,
     dimension,
@@ -14,14 +14,14 @@
 }).
 
 -record(index_query_args, {
-    bbox=undefined,
-    relation=undefined,
-    wkt=undefined,
-    radius=undefined,
-    range_x=undefined,
-    range_y=undefined,
-    x=undefined,
-    y=undefined,
+    bbox,
+    relation,
+    wkt,
+    radius,
+    range_x,
+    range_y,
+    x,
+    y,
     limit=200,
     stale=false,
     include_docs=false,
@@ -30,8 +30,8 @@
     srs=0,
     responseSrs=0,
     nearest=false,
-    tStart=undefined,
-    tEnd=undefined
+    tStart,
+    tEnd
 }).
 
 -record(docs, {

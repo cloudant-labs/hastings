@@ -1,16 +1,30 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 -module(hastings_httpd).
 
--export([handle_search_req/3, handle_info_req/3, handle_cleanup_req/2]).
+
 -include("hastings.hrl").
 -include_lib("couch/include/couch_db.hrl").
--import(chttpd, [send_method_not_allowed/2, send_json/2, send_json/3,
-                 send_response/4, send_error/2]).
 
-handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
-                  ,#db{name=DbName}, DDoc) ->
+
+-import(chttpd, [
+    send_method_not_allowed/2,
+    send_json/2,
+    send_json/3,
+    send_response/4,
+    send_error/2
+]).
+
+
+-export([
+    handle_search_req/3,
+    handle_info_req/3,
+    handle_cleanup_req/2
+]).
+
+
+handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req,
+        #db{name=DbName}, DDoc) ->
     % match query args against open search / leaflet string
     QueryArgs = #index_query_args{
         bbox = BBox,
@@ -23,9 +37,18 @@ handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
         include_docs = IncludeDocs
     } = parse_index_params(Req),
     % check we have at least one of radius, wkt, bbox or ellipse
-    case (BBox == undefined ) and (Wkt == undefined) and
-        ((Radius == undefined) and (X == undefined) and (Y == undefined)) and
-        ((EllipseX == undefined) and (EllipseY == undefined) and (X == undefined) and (Y == undefined)) of
+    case (BBox == undefined )
+        and
+        (Wkt == undefined)
+        and
+        (
+            (Radius == undefined) and (X == undefined) and (Y == undefined)
+        )
+        and
+        (
+            (EllipseX == undefined) and (EllipseY == undefined)
+            and (X == undefined) and (Y == undefined)
+        ) of
     true ->
         Msg = <<"must include a query argument argument">>,
         throw({query_parse_error, Msg});
@@ -251,14 +274,18 @@ page_results(DbName, DDoc, IndexName, #index_query_args{
             {ok, 0, _} ->
                {ok, 0, HitsAcc};
             {ok, TotalHits0, Hits0} ->
-                case CurrentPage rem 2 of
-                0 ->
-                    page_results(DbName, DDoc, IndexName, QueryArgs#index_query_args{currentPage=CurrentPage + 1}, CurrentIndex + TotalHits0,
-                    TotalHits0, HitsAcc ++ Hits0);
-                _ ->
-                    page_results(DbName, DDoc, IndexName, QueryArgs#index_query_args{currentPage=CurrentPage + 1}, CurrentIndex + TotalHits0,
-                    TotalHits0, HitsAcc ++ Hits0)
-                end;
+                NewQueryArgs = QueryArgs#index_query_args{
+                    currentPage = CurrentPage + 1
+                },
+                page_results(
+                        DbName,
+                        DDoc,
+                        IndexName,
+                        NewQueryArgs,
+                        CurrentIndex + TotalHits0,
+                        TotalHits0,
+                        HitsAcc ++ Hits0
+                    );
             Error ->
                 Error
         end

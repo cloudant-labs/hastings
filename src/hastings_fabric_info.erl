@@ -1,21 +1,25 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 -module(hastings_fabric_info).
+
 
 -include("hastings.hrl").
 -include_lib("mem3/include/mem3.hrl").
 -include_lib("couch/include/couch_db.hrl").
 
+
 -export([go/3]).
+
 
 go(DbName, DDocId, IndexName) when is_binary(DDocId) ->
     {ok, DDoc} = fabric:open_doc(DbName, <<"_design/", DDocId/binary>>, []),
     go(DbName, DDoc, IndexName);
 
+
 go(DbName, DDoc, IndexName) ->
     Shards = mem3:shards(DbName),
-    Workers = fabric_util:submit_jobs(Shards, hastings_rpc, info, [DDoc, IndexName]),
+    Args = [DDoc, IndexName],
+    Workers = fabric_util:submit_jobs(Shards, hastings_rpc, info, Args),
     RexiMon = fabric_util:create_monitors(Shards),
     Acc0 = {fabric_dict:init(Workers, nil), []},
     try
@@ -24,22 +28,6 @@ go(DbName, DDoc, IndexName) ->
         rexi_monitor:stop(RexiMon)
     end.
 
-handle_message({rexi_DOWN, _, {_,NodeRef},_}, _Worker, {Counters, Acc}) ->
-    case fabric_util:remove_down_workers(Counters, NodeRef) of
-    {ok, NewCounters} ->
-        {ok, {NewCounters, Acc}};
-    error ->
-        {error, {nodedown, <<"progress not possible">>}}
-    end;
-
-handle_message({rexi_EXIT, Reason}, Worker, {Counters, Acc}) ->
-    NewCounters = fabric_dict:erase(Worker, Counters),
-    case fabric_view:is_progress_possible(NewCounters) of
-    true ->
-        {ok, {NewCounters, Acc}};
-    false ->
-        {error, Reason}
-    end;
 
 handle_message({ok, Info}, Worker, {Counters, Acc}) ->
     case fabric_dict:lookup_element(Worker, Counters) of
@@ -57,22 +45,31 @@ handle_message({ok, Info}, Worker, {Counters, Acc}) ->
         end
     end;
 
+handle_message({rexi_DOWN, _, {_,NodeRef},_}, _Worker, {Counters, Acc}) ->
+    case fabric_util:remove_down_workers(Counters, NodeRef) of
+    {ok, NewCounters} ->
+        {ok, {Counters, Acc}};
+    error ->
+        {error, {nodedown, <<"progress not possible">>}}
+    end;
+
+handle_message({rexi_EXIT, Reason}, Worker, {Counters, Acc}) ->
+    handle_error(Reason, Worker, {Counters, Acc});
 handle_message({error, Reason}, Worker, {Counters, Acc}) ->
+    handle_error(Reason, Worker, {Counters, Acc});
+handle_message({'EXIT', Reason}, Worker, {Counters, Acc}) ->
+    handle_error(Reason, Worker, {Counters, Acc}).
+
+
+handle_error(Reason, Worker, {Counters, Acc}) ->
     NewCounters = fabric_dict:erase(Worker, Counters),
     case fabric_view:is_progress_possible(NewCounters) of
     true ->
         {ok, {NewCounters, Acc}};
     false ->
         {error, Reason}
-    end;
-handle_message({'EXIT', _}, Worker, {Counters, Acc}) ->
-    NewCounters = fabric_dict:erase(Worker, Counters),
-    case fabric_view:is_progress_possible(NewCounters) of
-    true ->
-        {ok, {NewCounters, Acc}};
-    false ->
-        {error, {nodedown, <<"progress not possible">>}}
     end.
+
 
 merge_results(Info) ->
     Dict = lists:foldl(fun({K,V},D0) -> orddict:append(K,V,D0) end,

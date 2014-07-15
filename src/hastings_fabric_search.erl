@@ -1,18 +1,23 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 -module(hastings_fabric_search).
+
 
 -include("hastings.hrl").
 -include_lib("mem3/include/mem3.hrl").
 -include_lib("couch/include/couch_db.hrl").
 
--export([go/4]).
+
+-export([
+    go/4
+]).
+
 
 -record(state, {
     docs,
     counters
 }).
+
 
 go(DbName, GroupId, IndexName, QueryArgs) when is_binary(GroupId) ->
     {ok, DDoc} = fabric:open_doc(DbName, <<"_design/", GroupId/binary>>, []),
@@ -20,7 +25,8 @@ go(DbName, GroupId, IndexName, QueryArgs) when is_binary(GroupId) ->
 
 go(DbName, DDoc, IndexName, QueryArgs) ->
     Shards = get_shards(DbName, QueryArgs),
-    Workers = fabric_util:submit_jobs(Shards, hastings_rpc, search, [DDoc, IndexName, QueryArgs]),
+    Args = [DDoc, IndexName, QueryArgs],
+    Workers = fabric_util:submit_jobs(Shards, hastings_rpc, search, Args),
     Counters = fabric_dict:init(Workers, nil),
     go(QueryArgs, Counters).
 
@@ -44,15 +50,9 @@ go(_QueryArgs, Counters) ->
         fabric_util:cleanup(Workers)
     end.
 
-handle_message({rexi_DOWN, _, {_, NodeRef}, _}, _, State) ->
-    case fabric_util:remove_down_workers(State#state.counters, NodeRef) of
-    {ok, NewCounters} ->
-        {ok, State#state{counters=NewCounters}};
-    error ->
-        {error, {nodedown, <<"progress not possible">>}}
-    end;
 
-handle_message({ok, #docs{hits=Hits}=NewDocs0}, Shard, #state{docs=Docs}=State) ->
+handle_message({ok, #docs{hits=Hits}=NewDocs0}, Shard, State) ->
+    Docs = State#state.docs,
     NewDocs = NewDocs0#docs{hits=[{Hit,Shard} || Hit <- Hits]},
     case fabric_dict:lookup_element(Shard, State#state.counters) of
     undefined ->
@@ -77,12 +77,20 @@ handle_message({ok, #docs{hits=Hits}=NewDocs0}, Shard, #state{docs=Docs}=State) 
         end
     end;
 
+handle_message({rexi_DOWN, _, {_, NodeRef}, _}, _, State) ->
+    case fabric_util:remove_down_workers(State#state.counters, NodeRef) of
+    {ok, NewCounters} ->
+        {ok, State#state{counters=NewCounters}};
+    error ->
+        {error, {nodedown, <<"progress not possible">>}}
+    end;
 handle_message({rexi_EXIT, Reason}, Worker, State) ->
     handle_error(Reason, Worker, State);
 handle_message({error, Reason}, Worker, State) ->
     handle_error(Reason, Worker, State);
 handle_message({'EXIT', Reason}, Worker, State) ->
     handle_error({exit, Reason}, Worker, State).
+
 
 handle_error(Reason, Worker, State) ->
     #state{
@@ -96,12 +104,16 @@ handle_error(Reason, Worker, State) ->
         {error, Reason}
     end.
 
+
 get_shards(DbName, #index_query_args{stale=ok}) ->
     mem3:ushards(DbName);
 get_shards(DbName, #index_query_args{stale=false}) ->
     mem3:shards(DbName).
 
-merge_docs(#docs{total_hits=TotalA, hits=HitsA}, #docs{total_hits=TotalB, hits=HitsB}) ->
+
+merge_docs(DocsA, DocsB) ->
+    #docs{total_hits=TotalA, hits=HitsA} = DocsA,
+    #docs{total_hits=TotalB, hits=HitsB} = DocsB,
     MergedTotal = TotalA + TotalB,
     MergedHits = HitsA ++ HitsB,
     #docs{total_hits=MergedTotal, hits=MergedHits}.

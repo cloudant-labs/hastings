@@ -1,21 +1,35 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 -module(hastings_index).
 -behavior(gen_server).
+
+
 -include_lib("couch/include/couch_db.hrl").
 -include("hastings.hrl").
 
 
-% public api.
--export([start_link/2, design_doc_to_index/2,
-        await/2, search/2, info/1, update_seq/2, delete/3, delete_index/1, update/3]).
+-export([
+    start_link/2,
+    design_doc_to_index/2,
+    await/2,
+    search/2,
+    info/1,
+    update_seq/2,
+    delete/3,
+    delete_index/1,
+    update/3
+]).
 
-% gen_server api.
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-    code_change/3]).
+-export([
+    init/1,
+    terminate/2,
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2,
+    code_change/3
+]).
 
-% private definitions.
+
 -record(state, {
     dbname,
     index,
@@ -25,87 +39,102 @@
     waiting_list=[]
 }).
 
-% public functions.
+
 start_link(DbName, Index) ->
     proc_lib:start_link(?MODULE, init, [{DbName, Index}]).
+
 
 await(Pid, MinSeq) ->
     gen_server:call(Pid, {await, MinSeq}, infinity).
 
+
 search(Pid, QueryArgs) ->
     gen_server:call(Pid, {search, QueryArgs}, infinity).
+
 
 info(Pid) ->
     gen_server:call(Pid, info, infinity).
 
+
 update_seq(Pid, NewCurrSeq) ->
     gen_server:call(Pid, {new_seq, NewCurrSeq}, infinity).
 
+
 delete(Pid, Id, Geom) ->
-  gen_server:call(Pid, {delete, Id, Geom}, infinity).
+    gen_server:call(Pid, {delete, Id, Geom}, infinity).
+
 
 delete_index(Pid) ->
-  gen_server:call(Pid, delete_index, infinity).
+    gen_server:call(Pid, delete_index, infinity).
+
 
 update(Pid, Id, Geom) ->
-  gen_server:call(Pid, {update, Id, Geom}, infinity).
+    gen_server:call(Pid, {update, Id, Geom}, infinity).
 
-% gen_server functions.
 
 init({DbName, Index}) ->
-  process_flag(trap_exit, true),
-  % Crs is defined at the database level
-  Crs = try
-      case mem3_shards:config_for_db(DbName) of
-      {ok, not_found} ->
-          "urn:ogc:def:crs:EPSG::4326";
-      {ok, Config} ->
-          case lists:keyfind(srs, 1, Config) of
-          {srs, Srs} ->
-              Srs;
-          false ->
-              "urn:ogc:def:crs:EPSG::4326"
-          end
-       end
-  catch _:_ ->
-      "urn:ogc:def:crs:EPSG::4326"
-  end,
+    process_flag(trap_exit, true),
+    % Crs is defined at the database level
+    Crs = try
+        case mem3_shards:config_for_db(DbName) of
+            {ok, not_found} ->
+                "urn:ogc:def:crs:EPSG::4326";
+            {ok, Config} ->
+                case lists:keyfind(srs, 1, Config) of
+                    {srs, Srs} ->
+                        Srs;
+                    false ->
+                        "urn:ogc:def:crs:EPSG::4326"
+                end
+            end
+    catch _:_ ->
+        "urn:ogc:def:crs:EPSG::4326"
+    end,
 
-  case open_index(DbName, Index#index{crs=Crs}) of
-    {ok, Pid, Idx, Seq, FlushSeq} ->
-        State=#state{
-          dbname=DbName,
-          index=Index#index{crs=Crs, current_seq=Seq, dbname=DbName, flush_seq=FlushSeq},
-          index_pid=Pid,
-          index_h = Idx
-         },
-        {ok, Db} = couch_db:open_int(DbName, []),
-        try couch_db:monitor(Db) after couch_db:close(Db) end,
-        proc_lib:init_ack({ok, self()}),
-        gen_server:enter_loop(?MODULE, [], State);
-    Error ->
-        proc_lib:init_ack(Error)
-  end.
+    case open_index(DbName, Index#index{crs=Crs}) of
+        {ok, Pid, Idx, Seq, FlushSeq} ->
+            State=#state{
+                dbname=DbName,
+                index=Index#index{
+                    crs=Crs,
+                    current_seq=Seq,
+                    dbname=DbName,
+                    flush_seq=FlushSeq
+                },
+                index_pid=Pid,
+                index_h = Idx
+            },
+            {ok, Db} = couch_db:open_int(DbName, []),
+            try couch_db:monitor(Db) after couch_db:close(Db) end,
+            proc_lib:init_ack({ok, self()}),
+            gen_server:enter_loop(?MODULE, [], State);
+        Error ->
+            proc_lib:init_ack(Error)
+    end.
 
-handle_call({await, RequestSeq}, From,
-            #state{
-                index=#index{current_seq=Seq}=Index,
-                index_pid=IndexPid,
-                updater_pid=nil,
-                waiting_list=WaitList
-            }=State) when RequestSeq > Seq ->
-    UpPid = spawn_link(fun() -> hastings_index_updater:update(IndexPid, Index) end),
-    {noreply, State#state{
-        updater_pid=UpPid,
-        waiting_list=[{From,RequestSeq}|WaitList]
-    }};
-handle_call({await, RequestSeq}, _From,
-            #state{index=#index{current_seq=Seq}}=State) when RequestSeq =< Seq ->
-    {reply, ok, State};
-handle_call({await, RequestSeq}, From, #state{waiting_list=WaitList}=State) ->
-    {noreply, State#state{
-        waiting_list=[{From,RequestSeq}|WaitList]
-    }};
+handle_call({await,RequestSeq}, From, St) ->
+    #state{
+        index = #index{current_seq = Seq} = Index,
+        index_pid = IndexPid,
+        updater_pid = UpPid,
+        waiting_list = WaitList
+    } = St,
+    case {RequestSeq, Seq, UpPid} of
+        _ when RequestSeq =< Seq ->
+            {reply, ok, St};
+        _ when RequestSeq > Seq andalso UpPid == undefined ->
+            UpPid = spawn_link(fun() ->
+                hastings_index_updater:update(IndexPid, Index)
+            end),
+            {noreply, St#state{
+                updater_pid = UpPid,
+                waiting_list = [{From, RequestSeq} | WaitList]
+            }};
+        _ when RequestSeq > Seq andalso UpPid /= undefined ->
+            {noreply, St#state{
+                waiting_list = [{From, RequestSeq} | WaitList]
+            }}
+    end;
 
 handle_call({search, #index_query_args{bbox=undefined, nearest=false, wkt=undefined,
       range_x=undefined, range_y=undefined, limit=ResultLimit}=QueryArgs},

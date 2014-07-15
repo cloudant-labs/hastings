@@ -1,10 +1,19 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 {application, hastings, [
-    {description, "geospatial index manager"},
+    {description, "Geospatial Index Manager"},
     {vsn, git},
     {mod, {hastings_app, []}},
-    {registered, [hastings_index_manager, hastings_sup]},
-    {applications, [kernel, stdlib, mem3, ioq]}
+    {registered, [
+        hastings_index_manager,
+        hastings_sup
+    ]},
+    {applications, [
+        kernel,
+        stdlib,
+        easton,
+        mem3,
+        ioq,
+        fabric
+    ]}
 ]}.

@@ -1,29 +1,43 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 -module(hastings_index_manager).
 -behavior(gen_server).
+
+
 -include_lib("couch/include/couch_db.hrl").
 -include("hastings.hrl").
+
 
 -define(BY_SIG, hastings_by_sig).
 -define(BY_PID, hastings_by_pid).
 
-% public api.
--export([start_link/0, get_index/2, handle_db_event/3]).
 
-% gen_server api.
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-    code_change/3]).
+-export([
+    start_link/0,
+    get_index/2
+]).
 
-% public functions.
+-export([
+    init/1,
+    terminate/2,
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2,
+    code_change/3
+]).
+
+-export([
+    handle_db_event/3
+]).
+
+
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
 
 get_index(DbName, Index) ->
     gen_server:call(?MODULE, {get_index, DbName, Index}, infinity).
 
-% gen_server functions.
 
 init([]) ->
     ets:new(?BY_SIG, [set, private, named_table]),
@@ -31,6 +45,11 @@ init([]) ->
     couch_event:link_listener(?MODULE, handle_db_event, nil, [all_dbs]),
     process_flag(trap_exit, true),
     {ok, nil}.
+
+
+terminate(_Reason, _State) ->
+    ok.
+
 
 handle_call({get_index, DbName, #index{sig=Sig}=Index}, From, State) ->
     case ets:lookup(?BY_SIG, {DbName, Sig}) of
@@ -75,8 +94,6 @@ handle_info({'EXIT', FromPid, Reason}, State) ->
     end,
     {noreply, State}.
 
-terminate(_Reason, _State) ->
-    ok.
 
 code_change(_OldVsn, Ref, _Extra) when is_reference(Ref) ->
     demonitor(Ref),
@@ -84,7 +101,7 @@ code_change(_OldVsn, Ref, _Extra) when is_reference(Ref) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-% private functions
+
 handle_db_event(DbName, created, _St) ->
     gen_server:cast(?MODULE, {cleanup, DbName}),
     {ok, nil};
@@ -93,6 +110,8 @@ handle_db_event(DbName, deleted, _St) ->
     {ok, nil};
 handle_db_event(_DbName, _Event, _St) ->
     {ok, nil}.
+
+
 new_index(DbName, #index{sig=Sig}=Index) ->
     case hastings_index:start_link(DbName, Index) of
     {ok, NewPid} ->
@@ -104,11 +123,12 @@ new_index(DbName, #index{sig=Sig}=Index) ->
         ok = gen_server:call(?MODULE, Msg, infinity)
     end.
 
+
 add_to_ets(Pid, DbName, Sig) ->
     true = ets:insert(?BY_PID, {Pid, {DbName, Sig}}),
     true = ets:insert(?BY_SIG, {{DbName, Sig}, Pid}).
 
+
 delete_from_ets(Pid, DbName, Sig) ->
     true = ets:delete(?BY_PID, Pid),
     true = ets:delete(?BY_SIG, {DbName, Sig}).
-
