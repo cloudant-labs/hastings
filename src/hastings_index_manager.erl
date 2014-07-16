@@ -81,7 +81,7 @@ handle_info({'EXIT', FromPid, Reason}, State) ->
     [] ->
         if Reason =/= normal ->
             ?LOG_ERROR("Exit on non-updater process: ~p", [Reason]),
-            exit(reason);
+            exit(Reason);
         true -> ok
         end;
     [{_, {DbName, Sig}}] ->
