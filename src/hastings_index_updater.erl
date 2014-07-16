@@ -67,7 +67,7 @@ update(IndexPid, Index) ->
                 total_changes = TotalChanges
             },
             {ok, _, _} = couch_db:enum_docs_since(Db, UpSeq, EnumFun, Acc0, []),
-            hastings_index:update_seq(IndexPid, NewSeq)
+            hastings_index:set_update_seq(IndexPid, NewSeq)
         after
             ?CQS:ret_os_process(Proc)
         end,
