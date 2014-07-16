@@ -1,9 +1,11 @@
 
-% CRS
--define(WGS84_LL, "urn:ogc:def:crs:EPSG::4326").
+
+-define(DEFAULT_SRID, 4326).
 
 
 -record(h_idx, {
+    pid,
+
     dbname,
     ddoc_id,
     name,
@@ -12,7 +14,7 @@
 
     type,
     dimension,
-    crs,
+    srid,
 
     update_seq = 0,
 
