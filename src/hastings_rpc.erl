@@ -24,7 +24,15 @@ search(DbName, DDoc, IndexName, HQArgs) ->
         ok -> ok;
         Error -> reply(Error)
     end,
-    reply(hastings_index:search(Pid, HQArgs)).
+    case hastings_index:search(Pid, HQArgs) of
+        {ok, Results0} ->
+            Results = lists:map(fun({DocId, Geom}) ->
+                #h_hit{id = DocId, geom = Geom}
+            end, Results0),
+            reply({ok, Results});
+        Else ->
+            reply(Else)
+    end.
 
 
 info(DbName, {DDocId, Rev}, IndexName) ->
