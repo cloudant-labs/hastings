@@ -3,19 +3,20 @@
 -define(WGS84_LL, "urn:ogc:def:crs:EPSG::4326").
 
 
--record(index, {
-    current_seq=0,
-    flush_seq=20,
+-record(h_idx, {
     dbname,
     ddoc_id,
-    def,
-    def_lang,
-    crs,
     name,
+    def,
+    lang,
+
     type,
     dimension,
-    limit=200,
-    sig=nil
+    crs,
+
+    update_seq = 0,
+
+    sig = nil
 }).
 
 
@@ -26,7 +27,7 @@
 
     req_srid = 0,
     resp_srid = 0,
-    
+
     start_time,
     end_time,
 

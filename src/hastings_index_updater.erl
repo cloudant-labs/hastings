@@ -7,31 +7,38 @@
 -include("hastings.hrl").
 
 
--import(couch_query_servers, [
-    get_os_process/1,
-    ret_os_process/1,
-    proc_prompt/2
-]).
-
-
 -export([
     update/2,
     load_docs/3
 ]).
 
 
+-define(CQS, couch_query_servers).
+
+
+-record(acc, {
+    idx_pid,
+    db,
+    proc,
+    changes_done = 0,
+    total_changes,
+    prev_cp = os:timestamp()
+}).
+
+
 update(IndexPid, Index) ->
-    #index{
-        current_seq = CurSeq,
+    #h_idx{
         dbname = DbName,
         ddoc_id = DDocId,
-        name = IndexName
+        name = IndexName,
+        lang = Language,
+        update_seq = UpSeq
     } = Index,
     erlang:put(io_priority, {view_update, DbName, IndexName}),
     {ok, Db} = couch_db:open_int(DbName, []),
     try
         %% compute on all docs modified since we last computed.
-        TotalChanges = couch_db:count_changes_since(Db, CurSeq),
+        TotalChanges = couch_db:count_changes_since(Db, UpSeq),
 
         couch_task_status:add_task([
             {type, geo_search_indexer},
@@ -47,72 +54,56 @@ update(IndexPid, Index) ->
         %% update status every half second
         couch_task_status:set_update_frequency(500),
 
-        NewCurSeq = couch_db:get_update_seq(Db),
-        Proc = get_os_process(<<"javascript">>),
+        NewSeq = couch_db:get_update_seq(Db),
+        Proc = ?CQS:get_os_process(Language),
         try
-            true = proc_prompt(Proc, [<<"add_fun">>, Index#index.def]),
+            Args = [<<"add_fun">>, Index#h_idx.def],
+            true = ?CQS:proc_prompt(Proc, Args),
             EnumFun = fun ?MODULE:load_docs/3,
-            Acc0 = {0, IndexPid, Db, Proc, TotalChanges, now()},
-
-            {ok,_,_} = couch_db:enum_docs_since(Db, CurSeq, EnumFun, Acc0, []),
-            hastings_index:update_seq(IndexPid, NewCurSeq)
+            Acc0 = #acc{
+                idx_pid = IndexPid,
+                db = Db,
+                proc = Proc,
+                total_changes = TotalChanges
+            },
+            {ok, _, _} = couch_db:enum_docs_since(Db, UpSeq, EnumFun, Acc0, []),
+            hastings_index:update_seq(IndexPid, NewSeq)
         after
-            ret_os_process(Proc)
+            ?CQS:ret_os_process(Proc)
         end,
-        exit({updated, NewCurSeq})
+        exit({updated, NewSeq})
     after
         couch_db:close(Db)
     end.
 
 
-load_docs(FDI, _, {I, IndexPid, Db, Proc, Total, _LastCommitTime}=Acc) ->
+load_docs(FDI, _, Acc) ->
+    ChangesDone = Acc#acc.changes_done,
     couch_task_status:update([
-            {changes_done, I},
-            {progress, (I * 100) div Total}
+            {changes_done, ChangesDone},
+            {progress, (ChangesDone * 100) div Acc#acc.total_changes}
         ]),
+
     DI = couch_doc:to_doc_info(FDI),
-    #doc_info{id=Id, revs=[#rev_info{deleted=Del}|_]} = DI,
-
-    Options = case Del of
+    #doc_info{id=Id, high_seq=Seq, revs=[#rev_info{deleted=Del}|_]} = DI,
+    case Del of
         true ->
-            [deleted];
-        _ ->
-            []
-    end,
-
-    case couch_db:open_doc(Db, FDI, Options) of
-        {ok, #doc{revs = {1, _}}} ->
-            % no previous revisions to delete from spatialindex
-            {ok, Doc} = couch_db:open_doc(Db, DI, []),
-            Json = couch_doc:to_json_obj(Doc, []),
-            case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
-                [[]] ->
-                    ok;
-                [Features] ->
-                    [ok = hastings_index:update(IndexPid, Id, Val)
-                            || [Val | _] <- Features]
-            end;
-        {ok, #doc{revs = {RevPos, [_, PrevRev|_]}} = OldDoc} ->
-            {ok, [{ok, PrevDoc}]} = couch_db:open_doc_revs(
-                    Db, OldDoc#doc.id, [{RevPos-1, PrevRev}], []),
-            PrevJson = couch_doc:to_json_obj(PrevDoc, []),
-            case proc_prompt(Proc, [<<"st_index_doc">>, PrevJson]) of
-                [[]] ->
-                    ok;
-                [PrevFeatures] ->
-                    [ok = hastings_index:delete(IndexPid, Id, PrevVal)
-                            || [PrevVal | _] <- PrevFeatures]
-            end,
-            if Del == true -> ok; true ->
-                {ok, Doc} = couch_db:open_doc(Db, DI, []),
-                Json = couch_doc:to_json_obj(Doc, []),
-                case proc_prompt(Proc, [<<"st_index_doc">>, Json]) of
-                    [[]] ->
-                        ok;
-                    [Features] ->
-                        [ok = hastings_index:update(IndexPid, Id, Val)
-                                || [Val | _] <- Features]
-                end
+            ok = hastings_index:remove(Acc#acc.idx_pid, Id);
+        false ->
+            {ok, Doc} = couch_db:open_doc(Acc#acc.db, DI, []),
+            Args = [<<"st_index_doc">>, couch_doc:to_json_obj(Doc, [])],
+            [Geoms] = ?CQS:proc_prompt(Acc#acc.proc, Args),
+            case Geoms of
+                [] -> ok = hastings_index:remove(Acc#acc.idx_pid, Id);
+                _  -> ok = hastings_index:update(Acc#acc.idx_pid, Id, Geoms)
             end
     end,
-    {ok, setelement(1, Acc, I + 1)}.
+
+    % Force a checkpoint every minute
+    case timer:now_diff(Now = os:timestamp(), Acc#acc.prev_cp) >= 60000000 of
+        true ->
+            ok = hastings_index:checkpoint(Acc#acc.idx_pid, Seq),
+            {ok, Acc#acc{changes_done = ChangesDone + 1, prev_cp = Now}};
+        false ->
+            {ok, Acc#acc{changes_done = ChangesDone + 1}}
+    end.
