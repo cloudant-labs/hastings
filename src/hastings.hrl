@@ -25,7 +25,7 @@
 -record(h_args, {
     geom,
     nearest = false,
-    filter,
+    filter = intersects,
 
     req_srid = 0,
     resp_srid = 0,
