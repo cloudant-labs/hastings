@@ -23,7 +23,9 @@ handle_error({rexi_EXIT, Reason}, Worker, State) ->
 handle_error({error, Reason}, Worker, State) ->
     handle_error_int(Reason, Worker, State);
 handle_error({'EXIT', Reason}, Worker, State) ->
-    handle_error_int({exit, Reason}, Worker, State).
+    handle_error_int({exit, Reason}, Worker, State);
+handle_error(Else, Worker, State) ->
+    handle_error_int(Else, Worker, State).
 
 
 handle_error_int(Reason, Worker, St) ->
