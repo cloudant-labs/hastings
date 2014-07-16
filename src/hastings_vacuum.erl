@@ -59,7 +59,7 @@ handle_cast({cleanup, DbName0}, St) ->
     DbName = mem3:dbname(DbName0),
     case queue:member(DbName, St#st.queue) of
         true ->
-            St;
+            {noreply, St};
         false ->
             NewQ = queue:in(DbName, St#st.queue),
             maybe_start_cleaner(St#st{queue = NewQ})
