@@ -136,8 +136,8 @@ set_record_fields(HQArgs, Params) ->
 search_parameters() ->
     [
         % Query/Geometry parameters
-        {<<"g">>,               wkt,            to_str},
-        {<<"geometry">>,        wkt,            to_str},
+        {<<"g">>,               wkt,            to_string},
+        {<<"geometry">>,        wkt,            to_string},
         {<<"bbox">>,            bbox,           to_bbox},
         {<<"x">>,               x,              to_float},
         {<<"y">>,               y,              to_float},
