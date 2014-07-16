@@ -126,14 +126,14 @@ handle_call({await, RequestSeq}, From, St) ->
 
 handle_call({search, HQArgs}, _From, St) ->
     Idx = St#st.index,
-    Shape = HQArgs#hq_args.geom,
+    Shape = HQArgs#h_args.geom,
     Opts = [
         {filter, HQArgs#h_args.filter},
         {nearest, HQArgs#h_args.nearest},
         {req_srid, HQArgs#h_args.req_srid},
         {resp_srid, HQArgs#h_args.resp_srid},
         {limit, HQArgs#h_args.limit},
-        {skip, HQArgs#h_args.skip}
+        {offset, HQArgs#h_args.skip}
     ],
     {reply, easton_index:search(Idx#h_idx.pid, Shape, Opts)};
 

@@ -22,7 +22,7 @@
 }).
 
 
--record(hq_args, {
+-record(h_args, {
     geom,
     nearest = false,
     filter,
@@ -33,16 +33,21 @@
     start_time,
     end_time,
 
-    limit = 200,
+    limit = 25,
     skip = 0,
     stale = false,
     include_docs = false
 }).
 
 
--record(docs, {
-    update_seq,
-    total_hits,
-    hits
+-record(h_acc, {
+    counters,
+    resps
 }).
 
+
+-record(h_hit, {
+    id,
+    geom,
+    doc
+}).

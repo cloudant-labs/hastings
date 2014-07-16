@@ -50,8 +50,8 @@ handle_info_req(Req, _Db, _DDoc) ->
     chttpd:send_method_not_allowed(Req, "GET").
 
 
-handle_cleanup_req(#httpd{method='POST'}=Req, #db{name=DbName}) ->
-    ok = hastings_vacuum:cleanup(DbName),
+handle_cleanup_req(#httpd{method='POST'}=Req, Db) ->
+    ok = hastings_vacuum:cleanup(couch_db:name(Db)),
     chttpd:send_json(Req, 202, {[{ok, true}]});
 handle_cleanup_req(Req, _Db) ->
     chttpd:send_method_not_allowed(Req, "POST").
@@ -108,16 +108,16 @@ get_shape(Name, Params, AllParams) ->
 set_record_fields(HQArgs, Params) ->
     lists:foldl(fun({Key, Val}, ArgAcc) ->
         Idx = case Key of
-            nearest ->      #hq_args.nearest;
-            filter ->       #hq_args.filter;
-            req_srid ->     #hq_args.req_srid;
-            resp_srid ->    #hq_args.resp_srid;
-            t_start ->      #hq_args.t_start;
-            t_end ->        #hq_args.t_end;
-            limit ->        #hq_args.limit;
-            skip ->         #hq_args.skip;
-            stale ->        #hq_args.stale;
-            include_docs -> #hq_args.include_docs;
+            nearest ->      #h_args.nearest;
+            filter ->       #h_args.filter;
+            req_srid ->     #h_args.req_srid;
+            resp_srid ->    #h_args.resp_srid;
+            t_start ->      #h_args.t_start;
+            t_end ->        #h_args.t_end;
+            limit ->        #h_args.limit;
+            skip ->         #h_args.skip;
+            stale ->        #h_args.stale;
+            include_docs -> #h_args.include_docs;
             extra ->        extra;
             _ ->            ignore
         end,
@@ -125,8 +125,8 @@ set_record_fields(HQArgs, Params) ->
             I when is_integer(I) ->
                 setelement(Idx, ArgAcc, Val);
             extra ->
-                E = ArgAcc#hq_args.extra,
-                ArgAcc#hq_args{extra = [Val | E]};
+                E = ArgAcc#h_args.extra,
+                ArgAcc#h_args{extra = [Val | E]};
             ignore ->
                 ArgAcc
         end

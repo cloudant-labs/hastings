@@ -3,9 +3,9 @@
 -module(hastings_fabric_search).
 
 
--include("hastings.hrl").
 -include_lib("mem3/include/mem3.hrl").
 -include_lib("couch/include/couch_db.hrl").
+-include("hastings.hrl").
 
 
 -export([
@@ -13,107 +13,60 @@
 ]).
 
 
--record(state, {
-    docs,
-    counters
-}).
-
-
-go(DbName, GroupId, IndexName, QueryArgs) when is_binary(GroupId) ->
+go(DbName, GroupId, IndexName, HQArgs) when is_binary(GroupId) ->
     {ok, DDoc} = fabric:open_doc(DbName, <<"_design/", GroupId/binary>>, []),
-    go(DbName, DDoc, IndexName, QueryArgs);
+    go(DbName, DDoc, IndexName, HQArgs);
 
-go(DbName, DDoc, IndexName, QueryArgs) ->
-    Shards = get_shards(DbName, QueryArgs),
-    Args = [DDoc, IndexName, QueryArgs],
+go(DbName, DDoc, IndexName, HQArgs) ->
+    Shards = get_shards(DbName, HQArgs),
+    Args = [fabric_util:doc_id_and_rev(DDoc), IndexName, HQArgs],
     Workers = fabric_util:submit_jobs(Shards, hastings_rpc, search, Args),
     Counters = fabric_dict:init(Workers, nil),
-    go(QueryArgs, Counters).
-
-go(_QueryArgs, Counters) ->
-    {Workers, _} = lists:unzip(Counters),
-    State = #state{
-        docs = #docs{total_hits=0,hits=[]},
-        counters = Counters
-     },
     RexiMon = fabric_util:create_monitors(Workers),
-    try rexi_utils:recv(Workers, #shard.ref, fun handle_message/3,
-        State, infinity, 1000 * 60 * 60) of
-    {ok, #state{docs=#docs{total_hits=TotalHits, hits=Hits}}} ->
-        {ok, TotalHits, Hits};
-    {ok, _} ->
-        {ok, 0, []};
-    {error, Reason} ->
-        {error, Reason}
+    St = #h_acc{
+        counters = Counters,
+        resps = []
+    },
+    CB = fun handle_message/3,
+    try rexi_utils:recv(Workers, #shard.ref, CB, St, infinity, 3600000) of
+        {ok, #h_acc{resps = Resps}} ->
+            {ok, Resps};
+        {error, Reason} ->
+            {error, Reason}
     after
         rexi_monitor:stop(RexiMon),
         fabric_util:cleanup(Workers)
     end.
 
 
-handle_message({ok, #docs{hits=Hits}=NewDocs0}, Shard, State) ->
-    Docs = State#state.docs,
-    NewDocs = NewDocs0#docs{hits=[{Hit,Shard} || Hit <- Hits]},
-    case fabric_dict:lookup_element(Shard, State#state.counters) of
-    undefined ->
-        %% already heard from someone else in this range
-        {ok, State};
-    nil ->
-        C1 = fabric_dict:store(Shard, ok, State#state.counters),
-        C2 = fabric_view:remove_overlapping_shards(Shard, C1),
-
-        MergedDocs = merge_docs(Docs, NewDocs),
-
-        State1 = State#state{
-            counters=C2,
-            docs=MergedDocs
-        },
-
-        case fabric_dict:any(nil, C2) of
-        true ->
-            {ok, State1};
-        false ->
-            {stop, State1}
-        end
+handle_message({ok, Resps}, Shard, St) ->
+    case fabric_dict:lookup_element(Shard, St#h_acc.counters) of
+        undefined ->
+            {ok, St};
+        nil ->
+            C1 = fabric_dict:store(Shard, ok, St#h_acc.counters),
+            C2 = fabric_view:remove_overlapping_shards(Shard, C1),
+            NewSt = St#h_acc{
+                counters = C2,
+                resps = merge_resps(St#h_acc.resps, Resps)
+            },
+            case fabric_dict:any(nil, C2) of
+                true -> {ok, NewSt};
+                false -> {stop, NewSt}
+            end
     end;
 
-handle_message({rexi_DOWN, _, {_, NodeRef}, _}, _, State) ->
-    case fabric_util:remove_down_workers(State#state.counters, NodeRef) of
-    {ok, NewCounters} ->
-        {ok, State#state{counters=NewCounters}};
-    error ->
-        {error, {nodedown, <<"progress not possible">>}}
-    end;
-handle_message({rexi_EXIT, Reason}, Worker, State) ->
-    handle_error(Reason, Worker, State);
-handle_message({error, Reason}, Worker, State) ->
-    handle_error(Reason, Worker, State);
-handle_message({'EXIT', Reason}, Worker, State) ->
-    handle_error({exit, Reason}, Worker, State).
+handle_message(Else, Worker, St) ->
+    hastings_fabric:handle_error(Else, Worker, St).
 
 
-handle_error(Reason, Worker, State) ->
-    #state{
-        counters=Counters0
-    } = State,
-    Counters = fabric_dict:erase(Worker, Counters0),
-    case fabric_view:is_progress_possible(Counters) of
-    true ->
-        {ok, State#state{counters=Counters}};
-    false ->
-        {error, Reason}
-    end.
-
-
-get_shards(DbName, #index_query_args{stale=ok}) ->
+get_shards(DbName, #h_args{stale=ok}) ->
     mem3:ushards(DbName);
-get_shards(DbName, #index_query_args{stale=false}) ->
+get_shards(DbName, #h_args{stale=update_after}) ->
+    mem3:ushards(DbName);
+get_shards(DbName, _) ->
     mem3:shards(DbName).
 
 
-merge_docs(DocsA, DocsB) ->
-    #docs{total_hits=TotalA, hits=HitsA} = DocsA,
-    #docs{total_hits=TotalB, hits=HitsB} = DocsB,
-    MergedTotal = TotalA + TotalB,
-    MergedHits = HitsA ++ HitsB,
-    #docs{total_hits=MergedTotal, hits=MergedHits}.
+merge_resps(RespsA, RespsB) ->
+    RespsA ++ RespsB.
