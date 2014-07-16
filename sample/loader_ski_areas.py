@@ -10,7 +10,7 @@ indexName = "ski_areas"
 designDocId = "_design/SpatialView"
 
 designDoc = {"_id" : designDocId,
-			"indexes" : {indexName : {
+			"geo_indexes" : {indexName : {
 				"index" : "function(doc){\
 							if (doc.geometry) \
 							{ \
