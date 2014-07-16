@@ -92,7 +92,8 @@ load_docs(FDI, _, Acc) ->
         false ->
             {ok, Doc} = couch_db:open_doc(Acc#acc.db, DI, []),
             Args = [<<"st_index_doc">>, couch_doc:to_json_obj(Doc, [])],
-            [Geoms] = ?CQS:proc_prompt(Acc#acc.proc, Args),
+            [Geoms0] = ?CQS:proc_prompt(Acc#acc.proc, Args),
+            Geoms = [G || {G, _Opts} <- Geoms0],
             case Geoms of
                 [] -> ok = hastings_index:remove(Acc#acc.idx_pid, Id);
                 _  -> ok = hastings_index:update(Acc#acc.idx_pid, Id, Geoms)
