@@ -13,7 +13,7 @@
     lang,
 
     type,
-    dimension,
+    dimensions,
     srid,
 
     update_seq = 0,
@@ -30,13 +30,15 @@
     req_srid = 0,
     resp_srid = 0,
 
-    start_time,
-    end_time,
+    t_start,
+    t_end,
 
     limit = 25,
     skip = 0,
     stale = false,
-    include_docs = false
+    include_docs = false,
+
+    extra = []
 }).
 
 
