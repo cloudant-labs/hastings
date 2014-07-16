@@ -99,7 +99,7 @@ init({DbName, Index}) ->
 
 terminate(_Reason, St) ->
     Index = St#st.index,
-    exit(St#st.updater_pid, kill),
+    catch exit(St#st.updater_pid, kill),
     ok = easton_index:close(Index#h_idx.pid).
 
 
