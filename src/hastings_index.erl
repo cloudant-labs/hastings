@@ -113,9 +113,9 @@ handle_call({await, RequestSeq}, From, St) ->
         _ when RequestSeq =< Seq ->
             {reply, ok, St};
         _ when RequestSeq > Seq andalso UpPid == undefined ->
-            UpPid = spawn_link(hastings_index_updater, update, [self(), Index]),
+            Pid = spawn_link(hastings_index_updater, update, [self(), Index]),
             {noreply, St#st{
-                updater_pid = UpPid,
+                updater_pid = Pid,
                 waiting_list = [{From, RequestSeq} | WaitList]
             }};
         _ when RequestSeq > Seq andalso UpPid /= undefined ->
