@@ -144,7 +144,7 @@ handle_call(info, _From, St) ->
 
 handle_call({new_seq, Seq}, _From, St) ->
     Idx = St#st.index,
-    ok = easton_index:put_kv(Idx#h_idx.pid, update_seq, Seq),
+    ok = easton_index:put(Idx#h_idx.pid, update_seq, Seq),
     {reply, ok, St};
 
 handle_call({update, Id, Geoms}, _From, St) ->
@@ -211,7 +211,7 @@ open_index(DbName, Idx) ->
     ],
     case easton_index:open(IdxDir, Opts) of
         {ok, Pid} ->
-            UpdateSeq = easton_index:get_kv(Pid, update_seq, 0),
+            UpdateSeq = easton_index:get(Pid, update_seq, 0),
             Idx#h_idx{
                 pid = Pid,
                 update_seq = UpdateSeq
