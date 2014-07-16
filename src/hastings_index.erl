@@ -214,6 +214,7 @@ open_index(DbName, Idx) ->
             UpdateSeq = easton_index:get(Pid, update_seq, 0),
             {ok, Idx#h_idx{
                 pid = Pid,
+                dbname = DbName,
                 update_seq = UpdateSeq
             }};
         Error ->
