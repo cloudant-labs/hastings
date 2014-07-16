@@ -29,7 +29,7 @@ parse_query(#httpd{}=Req, ParamDescrs) ->
     ],
     parse_query({BinParams}, ParamDescrs);
 parse_query({Props}, ParamDescrs) ->
-    lists:flatmap(fun(Key, Val) ->
+    lists:flatmap(fun({Key, Val}) ->
         parse_param(Key, Val, ParamDescrs)
     end, Props).
 
