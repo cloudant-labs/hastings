@@ -212,10 +212,10 @@ open_index(DbName, Idx) ->
     case easton_index:open(IdxDir, Opts) of
         {ok, Pid} ->
             UpdateSeq = easton_index:get(Pid, update_seq, 0),
-            Idx#h_idx{
+            {ok, Idx#h_idx{
                 pid = Pid,
                 update_seq = UpdateSeq
-            };
+            }};
         Error ->
             Error
     end.
