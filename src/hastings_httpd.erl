@@ -21,7 +21,7 @@ handle_search_req(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
     HQArgs = parse_search_req(Req),
     case hastings_fabric_search:go(DbName, DDoc, IndexName, HQArgs) of
         {ok, Hits} ->
-            ResultJson = hits_to_json(Hits),
+            ResultJson = hits_to_json(Hits, HQArgs),
             chttpd:send_json(Req, 200, ResultJson);
         {error, Reason} ->
             chttpd:send_error(Req, Reason);
@@ -57,7 +57,7 @@ handle_cleanup_req(Req, _Db) ->
     chttpd:send_method_not_allowed(Req, "POST").
 
 
-hits_to_json(Hits) ->
+hits_to_json(Hits, #h_args{include_geoms=true}) ->
     Geoms = lists:map(fun(H) ->
         {GeomProps} = H#h_hit.geom,
         IdProp = [{id, H#h_hit.id}],
@@ -70,6 +70,19 @@ hits_to_json(Hits) ->
     {[
         {<<"type">>, <<"GeometryCollection">>},
         {<<"geometries">>, Geoms}
+    ]};
+hits_to_json(Hits, _) ->
+    Features = lists:map(fun(H) ->
+        IdProp = [{id, H#h_hit.id}],
+        DocProp = case H#h_hit.doc of
+            undefined -> [];
+            Doc -> [{doc, Doc}]
+        end,
+        {IdProp ++ [{<<"type">>, <<"Feature">>}] ++ DocProp}
+    end, Hits),
+    {[
+        {<<"type">>, <<"FeatureCollection">>},
+        {<<"features">>, Features}
     ]}.
 
 
@@ -108,18 +121,19 @@ get_shape(Name, Params, AllParams) ->
 set_record_fields(HQArgs, Params) ->
     lists:foldl(fun({Key, Val}, ArgAcc) ->
         Idx = case Key of
-            nearest ->      #h_args.nearest;
-            filter ->       #h_args.filter;
-            req_srid ->     #h_args.req_srid;
-            resp_srid ->    #h_args.resp_srid;
-            t_start ->      #h_args.t_start;
-            t_end ->        #h_args.t_end;
-            limit ->        #h_args.limit;
-            skip ->         #h_args.skip;
-            stale ->        #h_args.stale;
-            include_docs -> #h_args.include_docs;
-            extra ->        extra;
-            _ ->            ignore
+            nearest ->          #h_args.nearest;
+            filter ->           #h_args.filter;
+            req_srid ->         #h_args.req_srid;
+            resp_srid ->        #h_args.resp_srid;
+            t_start ->          #h_args.t_start;
+            t_end ->            #h_args.t_end;
+            limit ->            #h_args.limit;
+            skip ->             #h_args.skip;
+            stale ->            #h_args.stale;
+            include_docs ->     #h_args.include_docs;
+            include_geoms ->    #h_args.include_geoms;
+            extra ->            extra;
+            _ ->                ignore
         end,
         case Idx of
             I when is_integer(I) ->
@@ -160,6 +174,7 @@ search_parameters() ->
         {<<"skip">>,            skip,           to_pos_int},
         {<<"stale">>,           stale,          to_stale},
         {<<"include_docs">>,    include_docs,   to_bool},
+        {<<"include_geoms">>,   include_geoms,  to_bool},
 
         % Backwards compatibility
         {<<"lon">>,             x,              to_float},

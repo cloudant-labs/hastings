@@ -37,6 +37,7 @@
     skip = 0,
     stale = false,
     include_docs = false,
+    include_geoms = false,
 
     extra = []
 }).
