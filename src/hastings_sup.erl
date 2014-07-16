@@ -17,6 +17,14 @@ start_link() ->
 init(_Args) ->
     Children = [
         {
+            hastings_vacuum,
+            {hastings_vacuum, start_link, []},
+            permanent,
+            1000,
+            worker,
+            [hastings_vacuum]
+        },
+        {
             hastings_index_manager,
             {hastings_index_manager, start_link, []},
             permanent,

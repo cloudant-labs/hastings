@@ -26,10 +26,6 @@
     code_change/3
 ]).
 
--export([
-    handle_db_event/3
-]).
-
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -42,7 +38,6 @@ get_index(DbName, Index) ->
 init([]) ->
     ets:new(?BY_SIG, [set, private, named_table]),
     ets:new(?BY_PID, [set, private, named_table]),
-    couch_event:link_listener(?MODULE, handle_db_event, nil, [all_dbs]),
     process_flag(trap_exit, true),
     {ok, nil}.
 
@@ -51,7 +46,7 @@ terminate(_Reason, _State) ->
     ok.
 
 
-handle_call({get_index, DbName, #index{sig=Sig}=Index}, From, State) ->
+handle_call({get_index, DbName, #h_idx{sig=Sig}=Index}, From, State) ->
     case ets:lookup(?BY_SIG, {DbName, Sig}) of
     [] ->
         spawn_link(fun() -> new_index(DbName, Index) end),
@@ -78,7 +73,7 @@ handle_call({open_error, DbName, Sig, Error}, _From, State) ->
     {reply, ok, State}.
 
 handle_cast({cleanup, DbName}, State) ->
-    hastings_rpc:cleanup(DbName),
+    hastings_vacuum:cleanup(DbName),
     {noreply, State}.
 
 handle_info({'EXIT', FromPid, Reason}, State) ->
@@ -102,17 +97,7 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 
-handle_db_event(DbName, created, _St) ->
-    gen_server:cast(?MODULE, {cleanup, DbName}),
-    {ok, nil};
-handle_db_event(DbName, deleted, _St) ->
-    gen_server:cast(?MODULE, {cleanup, DbName}),
-    {ok, nil};
-handle_db_event(_DbName, _Event, _St) ->
-    {ok, nil}.
-
-
-new_index(DbName, #index{sig=Sig}=Index) ->
+new_index(DbName, #h_idx{sig=Sig}=Index) ->
     case hastings_index:start_link(DbName, Index) of
     {ok, NewPid} ->
         Msg = {open_ok, DbName, Sig, NewPid},

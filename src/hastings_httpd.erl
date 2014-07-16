@@ -51,7 +51,7 @@ handle_info_req(Req, _Db, _DDoc) ->
 
 
 handle_cleanup_req(#httpd{method='POST'}=Req, #db{name=DbName}) ->
-    ok = hastings_fabric_cleanup:go(DbName),
+    ok = hastings_vacuum:cleanup(DbName),
     chttpd:send_json(Req, 202, {[{ok, true}]});
 handle_cleanup_req(Req, _Db) ->
     chttpd:send_method_not_allowed(Req, "POST").
