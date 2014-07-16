@@ -36,8 +36,8 @@ get_index(DbName, Index) ->
 
 
 init([]) ->
-    ets:new(?BY_SIG, [set, private, named_table]),
-    ets:new(?BY_PID, [set, private, named_table]),
+    ets:new(?BY_SIG, [set, public, named_table]),
+    ets:new(?BY_PID, [set, public, named_table]),
     process_flag(trap_exit, true),
     {ok, nil}.
 
