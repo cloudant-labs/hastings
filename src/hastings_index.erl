@@ -135,7 +135,12 @@ handle_call({search, HQArgs}, _From, St) ->
         {limit, HQArgs#h_args.limit},
         {offset, HQArgs#h_args.skip}
     ],
-    {reply, easton_index:search(Idx#h_idx.pid, Shape, Opts), St};
+    Resp = try
+        easton_index:search(Idx#h_idx.pid, Shape, Opts)
+    catch throw:Error ->
+        Error
+    end,
+    {reply, Resp, St};
 
 handle_call(info, _From, St) ->
     Idx = St#st.index,
