@@ -118,8 +118,8 @@ get_shape(Name, Params, AllParams) ->
     end.
 
 
-set_record_fields(HQArgs, Params) ->
-    lists:foldl(fun({Key, Val}, ArgAcc) ->
+set_record_fields(HQArgs0, Params) ->
+    HQArgs = lists:foldl(fun({Key, Val}, ArgAcc) ->
         Idx = case Key of
             nearest ->          #h_args.nearest;
             filter ->           #h_args.filter;
@@ -144,7 +144,18 @@ set_record_fields(HQArgs, Params) ->
             ignore ->
                 ArgAcc
         end
-    end, HQArgs, Params).
+    end, HQArgs0, Params),
+    % Set the default filter. This depends on whether we're
+    % doing a nearest=true query.
+    Default = case HQArgs#h_args.nearest of
+        true -> none;
+        false -> intersects
+    end,
+    Filter = case HQArgs#h_args.filter of
+        undefined -> Default;
+        Else -> Else
+    end,
+    HQArgs#h_args{filter = Filter}.
 
 
 search_parameters() ->
