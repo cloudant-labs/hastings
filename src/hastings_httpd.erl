@@ -57,32 +57,34 @@ handle_cleanup_req(Req, _Db) ->
     chttpd:send_method_not_allowed(Req, "POST").
 
 
-hits_to_json(Hits, #h_args{include_geoms=true}) ->
+hits_to_json(Hits, HQArgs) ->
+    Bookmark = hastings_bookmark:update(HQArgs#h_args.bookmark, Hits),
+    BookmarkJson = hastings_bookmark:pack(Bookmark),
+    hits_to_json0(Hits, BookmarkJson).
+
+
+hits_to_json0(Hits, Bookmark) ->
     Geoms = lists:map(fun(H) ->
-        {GeomProps} = H#h_hit.geom,
-        IdProp = [{id, H#h_hit.id}],
-        DocProp = case H#h_hit.doc of
+        Dist = [{<<"distance">>, H#h_hit.dist}],
+        Doc = case H#h_hit.doc of
             undefined -> [];
-            Doc -> [{doc, Doc}]
+            Doc0 -> [{doc, Doc0}]
         end,
-        {IdProp ++ GeomProps ++ DocProp}
+        Properties = {Dist ++ Doc},
+        Geom = case H#h_hit.geom of
+            undefined -> null;
+            Geom0 -> Geom0
+        end,
+        {[
+            {<<"id">>, H#h_hit.id},
+            {<<"geometry">>, Geom},
+            {<<"properties">>, Properties}
+        ]}
     end, Hits),
     {[
-        {<<"type">>, <<"GeometryCollection">>},
-        {<<"geometries">>, Geoms}
-    ]};
-hits_to_json(Hits, _) ->
-    Features = lists:map(fun(H) ->
-        IdProp = [{id, H#h_hit.id}],
-        DocProp = case H#h_hit.doc of
-            undefined -> [];
-            Doc -> [{doc, Doc}]
-        end,
-        {IdProp ++ [{<<"type">>, <<"Feature">>}] ++ DocProp}
-    end, Hits),
-    {[
+        {<<"bookmark">>, Bookmark},
         {<<"type">>, <<"FeatureCollection">>},
-        {<<"features">>, Features}
+        {<<"features">>, Geoms}
     ]}.
 
 
@@ -130,8 +132,10 @@ set_record_fields(HQArgs0, Params) ->
             limit ->            #h_args.limit;
             skip ->             #h_args.skip;
             stale ->            #h_args.stale;
+            stable ->           #h_args.stable;
             include_docs ->     #h_args.include_docs;
             include_geoms ->    #h_args.include_geoms;
+            bookmark ->         #h_args.bookmark;
             extra ->            extra;
             _ ->                ignore
         end,
@@ -184,8 +188,10 @@ search_parameters() ->
         {<<"limit">>,           limit,          to_limit},
         {<<"skip">>,            skip,           to_pos_int},
         {<<"stale">>,           stale,          to_stale},
+        {<<"stable">>,          stable,         to_bool},
         {<<"include_docs">>,    include_docs,   to_bool},
         {<<"include_geoms">>,   include_geoms,  to_bool},
+        {<<"bookmark">>,        bookmark,       to_bookmark},
 
         % Backwards compatibility
         {<<"lon">>,             x,              to_float},

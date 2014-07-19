@@ -36,21 +36,19 @@
     limit = 25,
     skip = 0,
     stale = false,
+    stable = false,
     include_docs = false,
     include_geoms = false,
+    bookmark = [],
 
     extra = []
 }).
 
 
--record(h_acc, {
-    counters,
-    resps
-}).
-
-
 -record(h_hit, {
     id,
+    dist,
     geom,
-    doc
+    doc,
+    shard
 }).

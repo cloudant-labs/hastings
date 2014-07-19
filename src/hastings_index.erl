@@ -133,7 +133,8 @@ handle_call({search, HQArgs}, _From, St) ->
         {req_srid, HQArgs#h_args.req_srid},
         {resp_srid, HQArgs#h_args.resp_srid},
         {limit, HQArgs#h_args.limit},
-        {offset, HQArgs#h_args.skip}
+        {include_geom, HQArgs#h_args.include_geoms},
+        {bookmark, HQArgs#h_args.bookmark}
     ],
     Resp = try
         easton_index:search(Idx#h_idx.pid, Shape, Opts)

@@ -18,55 +18,55 @@ go(DbName, GroupId, IndexName, HQArgs) when is_binary(GroupId) ->
     go(DbName, DDoc, IndexName, HQArgs);
 
 go(DbName, DDoc, IndexName, HQArgs) ->
-    Shards = get_shards(DbName, HQArgs),
-    Args = [fabric_util:doc_id_and_rev(DDoc), IndexName, HQArgs],
-    Workers = fabric_util:submit_jobs(Shards, hastings_rpc, search, Args),
-    Counters = fabric_dict:init(Workers, nil),
-    RexiMon = fabric_util:create_monitors(Workers),
-    St = #h_acc{
-        counters = Counters,
-        resps = []
-    },
-    CB = fun handle_message/3,
-    try rexi_utils:recv(Workers, #shard.ref, CB, St, infinity, 3600000) of
-        {ok, #h_acc{resps = Resps}} ->
-            {ok, Resps};
-        {error, Reason} ->
-            {error, Reason}
-    after
-        rexi_monitor:stop(RexiMon),
-        fabric_util:cleanup(Workers)
+    StartFun = search,
+    StartArgs = [fabric_util:doc_id_and_rev(DDoc), IndexName, HQArgs],
+    case run(DbName, StartFun, StartArgs, HQArgs) of
+        {ok, Resps} ->
+            Hits = merge_resps(Resps, HQArgs#h_args.limit),
+            {ok, maybe_add_docs(DbName, Hits, HQArgs)};
+        Else ->
+            Else
     end.
 
 
-handle_message({ok, Resps}, Shard, St) ->
-    case fabric_dict:lookup_element(Shard, St#h_acc.counters) of
-        undefined ->
-            {ok, St};
-        nil ->
-            C1 = fabric_dict:store(Shard, ok, St#h_acc.counters),
-            C2 = fabric_view:remove_overlapping_shards(Shard, C1),
-            NewSt = St#h_acc{
-                counters = C2,
-                resps = merge_resps(St#h_acc.resps, Resps)
-            },
-            case fabric_dict:any(nil, C2) of
-                true -> {ok, NewSt};
-                false -> {stop, NewSt}
-            end
-    end;
-
-handle_message(Else, Worker, St) ->
-    hastings_fabric:handle_error(Else, Worker, St).
+run(DbName, StartFun, StartArgs, #h_args{}=HQArgs) ->
+    Primary = [
+        {Node, Range} || {{Node, Range}, _} <- HQArgs#h_args.bookmark
+    ],
+    Stale = lists:member(HQArgs#h_args.stale, [true, update_after]),
+    Stable = HQArgs#h_args.stable,
+    Secondary = case Stale orelse Stable of
+        true -> mem3:ushards(DbName);
+        false -> []
+    end,
+    hastings_fabric:run(DbName, StartFun, StartArgs, Primary, Secondary).
 
 
-get_shards(DbName, #h_args{stale=ok}) ->
-    mem3:ushards(DbName);
-get_shards(DbName, #h_args{stale=update_after}) ->
-    mem3:ushards(DbName);
-get_shards(DbName, _) ->
-    mem3:shards(DbName).
+merge_resps([{ok, Hits}], _Limit) ->
+    Hits;
+merge_resps([{ok, Hits} | Rest], Limit) ->
+    RestHits = merge_resps(Rest, Limit),
+    merge_hits(Hits, RestHits, Limit).
 
 
-merge_resps(RespsA, RespsB) ->
-    RespsA ++ RespsB.
+merge_hits(Hits, RestHits, Limit) ->
+    SortFun = fun(H1, H2) ->
+        {H1#h_hit.dist, H1#h_hit.id} =< {H2#h_hit.dist, H2#h_hit.id}
+    end,
+    SortedHits = lists:sort(SortFun, Hits ++ RestHits),
+    lists:sublist(SortedHits, Limit).
+
+
+maybe_add_docs(DbName, Hits, #h_args{include_docs=true}) ->
+    add_docs(DbName, Hits);
+maybe_add_docs(_DbName, Hits, _) ->
+    Hits.
+
+
+add_docs(DbName, Hits) ->
+    DocIds = [Id || #h_hit{id=Id} <- Hits],
+    {ok, Docs} = hastings_util:get_json_docs(DbName, DocIds),
+    lists:map(fun(H) ->
+        {_, Doc} = lists:keyfind(H#h_hit.id, 1, Docs),
+        H#h_hit{doc = Doc}
+    end, Hits).

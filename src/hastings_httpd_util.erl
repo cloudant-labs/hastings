@@ -12,6 +12,7 @@
     to_pos_int/2,
     to_float/2,
     to_string/2,
+    to_bookmark/2,
     to_bbox/2,
     to_filter/2,
     to_limit/2,
@@ -102,6 +103,16 @@ to_string(_Name, Value) when is_binary(Value) ->
     Value;
 to_string(Name, Value) ->
     invalid_value("string", Name, Value).
+
+
+to_bookmark(Name, Value) when is_binary(Value) ->
+    try
+        hastings_bookmark:unpack(Value)
+    catch _:_ ->
+        invalid_value("bookmark", Name, Value)
+    end;
+to_bookmark(Name, Value) ->
+    invalid_value("bookmark", Name, Value).
 
 
 to_bbox(Name, Value) when is_binary(Value) ->

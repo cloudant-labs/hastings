@@ -4,6 +4,7 @@
 
 
 -include_lib("couch/include/couch_db.hrl").
+-include_lib("mem3/include/mem3.hrl").
 -include("hastings.hrl").
 
 
@@ -12,37 +13,47 @@
     info/3
 ]).
 
-search(DbName, {DDocId, Rev}, IndexName, HQArgs) ->
-    erlang:put(io_priority, {interactive, DbName}),
-    {ok, DDoc} = ddoc_cache:open_doc(mem3:dbname(DbName), DDocId, Rev),
-    search(DbName, DDoc, IndexName, HQArgs);
-search(DbName, DDoc, IndexName, HQArgs) ->
-    erlang:put(io_priority, {interactive, DbName}),
-    AwaitSeq = get_await_seq(DbName, HQArgs),
-    Pid = get_index_pid(DbName, DDoc, IndexName),
+
+search(Shard, DDocInfo, IndexName, HQArgs0) ->
+    erlang:put(io_priority, {interactive, Shard#shard.name}),
+    DDoc = get_ddoc(Shard, DDocInfo),
+    HQArgs = set_bookmark(Shard, HQArgs0),
+    AwaitSeq = get_await_seq(Shard#shard.name, HQArgs),
+    Pid = get_index_pid(Shard#shard.name, DDoc, IndexName),
     case hastings_index:await(Pid, AwaitSeq) of
         ok -> ok;
         Error -> reply(Error)
     end,
     case hastings_index:search(Pid, HQArgs) of
         {ok, Results0} ->
-            Results = lists:map(fun({DocId, Geom}) ->
-                #h_hit{id = DocId, geom = Geom}
-            end, Results0),
+            Results = lists:map(fun(R) -> fmt_result(Shard, R) end, Results0),
             reply({ok, Results});
         Else ->
             reply(Else)
     end.
 
 
-info(DbName, {DDocId, Rev}, IndexName) ->
-    erlang:put(io_priority, {interactive, DbName}),
-    {ok, DDoc} = ddoc_cache:open_doc(mem3:dbname(DbName), DDocId, Rev),
-    info(DbName, DDoc, IndexName);
-info(DbName, DDoc, IndexName) ->
-    erlang:put(io_priority, {interactive, DbName}),
-    Pid = get_index_pid(DbName, DDoc, IndexName),
+info(Shard, DDocInfo, IndexName) ->
+    erlang:put(io_priority, {interactive, Shard#shard.name}),
+    DDoc = get_ddoc(Shard#shard.name, DDocInfo),
+    Pid = get_index_pid(Shard#shard.name, DDoc, IndexName),
     reply(hastings_index:info(Pid)).
+
+
+get_ddoc(Shard, {DDocId, Rev}) ->
+    {ok, DDoc} = ddoc_cache:open_doc(Shard#shard.dbname, DDocId, Rev),
+    DDoc;
+get_ddoc(_Shard, DDoc) ->
+    DDoc.
+
+
+set_bookmark(#shard{node=N, range=R}, #h_args{bookmark=Bookmark} = HQArgs) ->
+    case lists:keyfind({N, R}, 1, Bookmark) of
+        {{N, R}, Value} ->
+            HQArgs#h_args{bookmark = Value};
+        _ ->
+            HQArgs#h_args{bookmark = undefined}
+    end.
 
 
 get_index_pid(DbName, DDoc, IndexName) ->
@@ -81,6 +92,21 @@ get_or_create_db(DbName, Options) ->
         Else ->
             Else
     end.
+
+
+fmt_result(Shard, {DocId, Dist}) ->
+    #h_hit{
+        id = DocId,
+        dist = Dist,
+        shard = {Shard#shard.node, Shard#shard.range}
+    };
+fmt_result(Shard, {DocId, Dist, Geom}) ->
+    #h_hit{
+        id = DocId,
+        dist = Dist,
+        geom = Geom,
+        shard = {Shard#shard.node, Shard#shard.range}
+    }.
 
 
 reply(Msg) ->
