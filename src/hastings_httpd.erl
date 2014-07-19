@@ -114,7 +114,7 @@ get_shape(Name, Params, AllParams) ->
         true ->
             false;
         false ->
-            {Name, list_to_tuple([element(2, P) || P <- Params])}
+            {Name, list_to_tuple([element(2, P) || P <- Values])}
     end.
 
 
