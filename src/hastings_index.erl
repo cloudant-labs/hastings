@@ -145,8 +145,8 @@ handle_call({search, HQArgs}, _From, St) ->
 
 handle_call(info, _From, St) ->
     Idx = St#st.index,
-    {ok, DocCount} = easton_index:doc_count(Idx#h_idx.pid),
-    {reply, {ok, [{doc_count, DocCount}]}, St};
+    {ok, Info} = easton_index:info(Idx#h_idx.pid),
+    {reply, {ok, Info}, St};
 
 handle_call({new_seq, Seq}, _From, St) ->
     Idx = St#st.index,

@@ -30,13 +30,16 @@ merge_resps(Resps) ->
     Dict = lists:foldl(fun({ok, Info}, D0) ->
         lists:foldl(fun({K, V}, D1) ->
             orddict:append(K, V, D1)
-        end, Info, D0)
+        end, D0, Info)
     end, orddict:new(), Resps),
-    orddict:fold(fun
+    FinalInfo = orddict:fold(fun
         (disk_size, X, Acc) ->
             [{disk_size, lists:sum(X)} | Acc];
+        (data_size, X, Acc) ->
+            [{data_size, lists:sum(X)} | Acc];
         (doc_count, X, Acc) ->
             [{doc_count, lists:sum(X)} | Acc];
         (_, _, Acc) ->
             Acc
-    end, [], Dict).
+    end, [], Dict),
+    {ok, FinalInfo}.
