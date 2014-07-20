@@ -194,7 +194,7 @@ handle_info({'EXIT', Pid, Reason}, #st{updater_pid=Pid} = St) ->
     {stop, normal, St};
 handle_info({'EXIT', Pid, Reason}, #st{index=#h_idx{pid={Pid}}} = St) ->
     Fmt = "Index for ~s closed with reason ~w",
-    twig:log(notice, Fmt, [index_name(St#st.index), Reason]),
+    ?LOG_INFO(Fmt, [index_name(St#st.index), Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
     {stop, normal, St};
 handle_info({'DOWN', _ , _, Pid, Reason}, St) ->
