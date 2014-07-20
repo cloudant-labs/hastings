@@ -35,7 +35,7 @@ search(Shard, DDocInfo, IndexName, HQArgs0) ->
 
 info(Shard, DDocInfo, IndexName) ->
     erlang:put(io_priority, {interactive, Shard#shard.name}),
-    DDoc = get_ddoc(Shard#shard.name, DDocInfo),
+    DDoc = get_ddoc(Shard, DDocInfo),
     Pid = get_index_pid(Shard#shard.name, DDoc, IndexName),
     reply(hastings_index:info(Pid)).
 
