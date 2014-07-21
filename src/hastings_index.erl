@@ -34,6 +34,7 @@
 
 -record(st, {
     index,
+    dbref,
     updater_pid,
     waiting_list = []
 }).
@@ -84,13 +85,16 @@ init({DbName, Index}) ->
     case open_index(DbName, Index) of
         {ok, NewIndex} ->
             {ok, Db} = couch_db:open_int(DbName, []),
-            try
+            DbRef = try
                 couch_db:monitor(Db)
             after
                 couch_db:close(Db)
             end,
             proc_lib:init_ack({ok, self()}),
-            St = #st{index = NewIndex},
+            St = #st{
+                index = NewIndex,
+                dbref = DbRef
+            },
             gen_server:enter_loop(?MODULE, [], St);
         Error ->
             proc_lib:init_ack(Error)
@@ -197,7 +201,7 @@ handle_info({'EXIT', Pid, Reason}, #st{index=#h_idx{pid={Pid}}} = St) ->
     ?LOG_INFO(Fmt, [index_name(St#st.index), Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
     {stop, normal, St};
-handle_info({'DOWN', _ , _, Pid, Reason}, St) ->
+handle_info({'DOWN', DbRef, _, Pid, Reason}, #st{dbref=DbRef} = St) ->
     Fmt = "~s ~s closing: Db pid ~p closing w/ reason ~w",
     ?LOG_INFO(Fmt, [?MODULE, index_name(St#st.index), Pid, Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
