@@ -22,8 +22,9 @@ go(DbName, DDoc, IndexName, HQArgs) ->
     StartArgs = [fabric_util:doc_id_and_rev(DDoc), IndexName, HQArgs],
     case run(DbName, StartFun, StartArgs, HQArgs) of
         {ok, Resps} ->
-            Hits = merge_resps(Resps, HQArgs#h_args.limit),
-            {ok, maybe_add_docs(DbName, Hits, HQArgs)};
+            Hits0 = merge_resps(Resps, HQArgs),
+            Hits1 = limit_resps(Hits0, HQArgs),
+            {ok, maybe_add_docs(DbName, Hits1, HQArgs)};
         Else ->
             Else
     end.
@@ -42,6 +43,9 @@ run(DbName, StartFun, StartArgs, #h_args{}=HQArgs) ->
     hastings_fabric:run(DbName, StartFun, StartArgs, Primary, Secondary).
 
 
+merge_resps(Hits, #h_args{}=HQArgs) ->
+    Limit = HQArgs#h_args.limit + HQArgs#h_args.skip,
+    merge_resps(Hits, Limit);
 merge_resps([{ok, Hits}], _Limit) ->
     Hits;
 merge_resps([{ok, Hits} | Rest], Limit) ->
@@ -55,6 +59,16 @@ merge_hits(Hits, RestHits, Limit) ->
     end,
     SortedHits = lists:sort(SortFun, Hits ++ RestHits),
     lists:sublist(SortedHits, Limit).
+
+
+limit_resps(Hits, HQArgs) ->
+    limit_resps(Hits, HQArgs#h_args.skip, HQArgs#h_args.limit).
+
+
+limit_resps(Hits, Skip, _Limit) when Skip >= length(Hits) ->
+    [];
+limit_resps(Hits, Skip, Limit) ->
+    lists:sublist(Hits, Skip+1, Limit).
 
 
 maybe_add_docs(DbName, Hits, #h_args{include_docs=true}) ->
