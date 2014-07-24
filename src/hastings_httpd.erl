@@ -150,11 +150,32 @@ set_record_fields(HQArgs0, Params) ->
                 ArgAcc
         end
     end, HQArgs0, Params),
-    % Set the default filter. This depends on whether we're
-    % doing a nearest=true query.
-    Default = case HQArgs#h_args.nearest of
-        true -> none;
-        false -> intersects
+    % Check for our geometry/filter combinations for
+    % acceptability and to set the default relation.
+    Default = case HQArgs#h_args.geom of
+        {bbox, Coords} when length(Coords) > 4 ->
+            % If a user specifies a bonding box with more
+            % than two dimension we need to make sure they
+            % aren't trying to use a filter as that would
+            % return meaningless results due to how libgeos
+            % works.
+            case HQArgs#h_args.filter of
+                undefined ->
+                    none;
+                none ->
+                    none;
+                _ ->
+                    throw({query_parse_error, filter_with_md_bbox})
+            end;
+        {bbox, _Coords} ->
+            % All bbox queries default to a basic MBR
+            % query. Fancy relationships need to be
+            % requested specifically.
+            none;
+        _ when not HQArgs#h_args.nearest ->
+            intersects;
+        _ ->
+            none
     end,
     Filter = case HQArgs#h_args.filter of
         undefined -> Default;
