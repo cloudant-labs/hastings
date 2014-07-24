@@ -404,11 +404,18 @@ get_index_type(IdxProps) ->
 
 
 get_index_dimensions(IdxProps) ->
-    case couch_util:get_value(<<"dimensions">>, IdxProps, 2) of
+    case couch_util:get_value(<<"dimensions">>, IdxProps, undefined) of
         N when N == 2; N == 3; N == 4 ->
             N;
-        Else ->
-            throw({invalid_index_dimensions, Else})
+        undefined ->
+            case couch_util:get_value(<<"dimension">>, IdxProps, 2) of
+                N when N == 2; N == 3; N == 4 ->
+                    N;
+                Else2 ->
+                    throw({invalid_index_dimensions, Else2})
+            end;
+        Else1 ->
+            throw({invalid_index_dimensions, Else1})
     end.
 
 
