@@ -177,8 +177,8 @@ search_parameters() ->
         % Geo parameters
         {<<"nearest">>,         nearest,        to_bool},
         {<<"filter">>,          filter,         to_filter},
-        {<<"srid">>,            req_srid,       to_pos_int},
-        {<<"response_srid">>,   resp_srid,      to_pos_int},
+        {<<"srid">>,            req_srid,       to_string},
+        {<<"response_srid">>,   resp_srid,      to_string},
 
         % Temporal parameters
         {<<"start">>,           t_start,        to_float},
@@ -201,6 +201,6 @@ search_parameters() ->
         {<<"rangey">>,          y_range,        to_float},
         {<<"relation">>,        filter,         to_filter},
         {<<"startIndex">>,      skip,           to_pos_int},
-        {<<"srs">>,             req_srid,       to_pos_int},
-        {<<"responseSrs">>,     resp_srid,      to_pos_int}
+        {<<"srs">>,             req_srid,       to_string},
+        {<<"responseSrs">>,     resp_srid,      to_string}
     ].

@@ -27,8 +27,8 @@
     nearest = false,
     filter,
 
-    req_srid = 0,
-    resp_srid = 0,
+    req_srid = default,
+    resp_srid = default,
 
     t_start,
     t_end,
