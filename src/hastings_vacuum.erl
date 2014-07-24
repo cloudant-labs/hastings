@@ -132,7 +132,8 @@ cleanup(DbName, ActiveSigs) ->
     BaseDir = config:get("hastings", "geo_index", "/srv/geo_index"),
 
     % Generate {Sig, IdxDir} mappings
-    Pattern = filename:join([BaseDir, "shards", "*", DbName, "*"]),
+    Pattern0 = filename:join([BaseDir, "shards", "*", DbName, "*"]),
+    Pattern = binary_to_list(iolist_to_binary(Pattern0)),
     DirList = filelib:wildcard(Pattern),
     SigDirs = [{filename:rootname(D), D} || D <- DirList],
 
