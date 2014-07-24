@@ -184,6 +184,9 @@ handle_call({search, HQArgs}, _From, St) ->
         {nearest, HQArgs#h_args.nearest},
         {req_srid, HQArgs#h_args.req_srid},
         {resp_srid, HQArgs#h_args.resp_srid},
+        {vbox, HQArgs#h_args.vbox},
+        {t_start, HQArgs#h_args.t_start},
+        {t_end, HQArgs#h_args.t_end},
         {limit, HQArgs#h_args.limit + HQArgs#h_args.skip},
         {include_geom, HQArgs#h_args.include_geoms},
         {bookmark, HQArgs#h_args.bookmark}

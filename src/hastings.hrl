@@ -30,6 +30,7 @@
     req_srid = default,
     resp_srid = default,
 
+    vbox,
     t_start,
     t_end,
 

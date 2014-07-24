@@ -127,6 +127,7 @@ set_record_fields(HQArgs0, Params) ->
             filter ->           #h_args.filter;
             req_srid ->         #h_args.req_srid;
             resp_srid ->        #h_args.resp_srid;
+            vbox ->             #h_args.vbox;
             t_start ->          #h_args.t_start;
             t_end ->            #h_args.t_end;
             limit ->            #h_args.limit;
@@ -181,6 +182,7 @@ search_parameters() ->
         {<<"response_srid">>,   resp_srid,      to_string},
 
         % Temporal parameters
+        {<<"vbox">>,            vbox,           to_bbox},
         {<<"start">>,           t_start,        to_float},
         {<<"end">>,             t_end,          to_float},
 
