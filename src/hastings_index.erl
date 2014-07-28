@@ -178,7 +178,7 @@ handle_call({await, RequestSeq}, From, St) ->
 
 handle_call({search, HQArgs}, _From, St) ->
     Idx = St#st.index,
-    Shape = HQArgs#h_args.geom,
+    Geom = HQArgs#h_args.geom,
     Opts = [
         {filter, HQArgs#h_args.filter},
         {nearest, HQArgs#h_args.nearest},
@@ -192,7 +192,7 @@ handle_call({search, HQArgs}, _From, St) ->
         {bookmark, HQArgs#h_args.bookmark}
     ],
     Resp = try
-        easton_index:search(Idx#h_idx.pid, Shape, Opts)
+        easton_index:search(Idx#h_idx.pid, Geom, Opts)
     catch throw:Error ->
         Error
     end,

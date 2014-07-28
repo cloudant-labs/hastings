@@ -90,27 +90,27 @@ hits_to_json0(Hits, Bookmark) ->
 
 parse_search_req(Req) ->
     Params = hastings_httpd_util:parse_query(Req, search_parameters()),
-    set_record_fields(#h_args{geom = get_geom(Params)}, Params).
+    set_record_fields(#h_args{geom = get_geometry(Params)}, Params).
 
 
-get_geom(Params) ->
+get_geometry(Params) ->
     WKT = lists:keyfind(wkt, 1, Params),
     BBox = lists:keyfind(bbox, 1, Params),
-    Circle = get_shape(circle, [x, y, r], Params),
-    Ellipse = get_shape(ellipse, [x, y, x_range, y_range], Params),
+    Circle = get_geometry(circle, [x, y, r], Params),
+    Ellipse = get_geometry(ellipse, [x, y, x_range, y_range], Params),
     Filt = fun(false) -> false; (_) -> true end,
-    Shapes = lists:filter(Filt, [WKT, BBox, Circle, Ellipse]),
-    case Shapes of
+    Geoms = lists:filter(Filt, [WKT, BBox, Circle, Ellipse]),
+    case Geoms of
         [] ->
             throw({query_parse_error, "No geometry query specified."});
-        [Shape] ->
-            Shape;
+        [Geom] ->
+            Geom;
         [_|_] ->
             throw({query_parse_error, "Multiple geometry queries specified."})
     end.
 
 
-get_shape(Name, Params, AllParams) ->
+get_geometry(Name, Params, AllParams) ->
     Values = [lists:keyfind(P, 1, AllParams) || P <- Params],
     case lists:member(false, Values) of
         true ->
