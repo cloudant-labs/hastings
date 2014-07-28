@@ -10,7 +10,7 @@ indexName = "countries"
 designDocId = "_design/SpatialView"
 
 designDoc = {"_id" : designDocId,
-			"geo_indexes" : {indexName : {
+			"st_indexes" : {indexName : {
 				"index" : "function(doc){\
 							if (doc.geometry) \
 							{ \

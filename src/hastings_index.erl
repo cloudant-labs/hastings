@@ -340,7 +340,7 @@ add_last_monitors(Resp) ->
 
 
 design_doc_to_index_int(Id, Fields, IndexName) ->
-    {RawIndexes} = case couch_util:get_value(<<"geo_indexes">>, Fields) of
+    {RawIndexes} = case couch_util:get_value(<<"st_indexes">>, Fields) of
         undefined ->
             {[]};
         {_} = RI ->
