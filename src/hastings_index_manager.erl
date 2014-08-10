@@ -118,10 +118,6 @@ handle_cast({gen_check, FromPid, Gen}, State) ->
                     end
             end
     end,
-    {noreply, State};
-
-handle_cast({cleanup, DbName}, State) ->
-    hastings_vacuum:cleanup(DbName),
     {noreply, State}.
 
 

@@ -39,7 +39,9 @@ start_link() ->
 
 
 cleanup(DbName) ->
-    gen_server:cast(?MODULE, {cleanup, DbName}).
+    lists:foreach(fun(Node) ->
+        rexi:cast(Node, {gen_server, cast, [?MODULE, {cleanup, DbName}]})
+    end, mem3:nodes()).
 
 
 init(_) ->
@@ -109,14 +111,19 @@ start_cleaner(St) ->
 
 
 clean_db(DbName) ->
-    {ok, JsonDDocs} = fabric:design_docs(DbName),
-    DDocs = [couch_doc:from_json_obj(DD) || DD <- JsonDDocs],
-    ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1, DDocs)),
-    cleanup(DbName, ActiveSigs).
+    try
+        {ok, JsonDDocs} = fabric:design_docs(DbName),
+        DDocs = [couch_doc:from_json_obj(DD) || DD <- JsonDDocs],
+        ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1, DDocs)),
+        twig:log(err, "SIGS: ~s ~p", [DbName, ActiveSigs]),
+        cleanup(DbName, ActiveSigs)
+    catch error:database_does_not_exist ->
+        ok
+    end.
 
 
 active_sigs(#doc{body={Fields}}=Doc) ->
-    {RawIndexes} = couch_util:get_value(<<"indexes">>, Fields, {[]}),
+    {RawIndexes} = couch_util:get_value(<<"st_indexes">>, Fields, {[]}),
     {IndexNames, _} = lists:unzip(RawIndexes),
     lists:flatmap(fun(Name) ->
         try
@@ -131,18 +138,32 @@ active_sigs(#doc{body={Fields}}=Doc) ->
 cleanup(DbName, ActiveSigs) ->
     BaseDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
 
-    % Generate {Sig, IdxDir} mappings
-    Pattern0 = filename:join([BaseDir, "shards", "*", DbName, "*"]),
+    % Find the existing index directories on disk
+    DbNamePattern = <<DbName/binary, ".*">>,
+    Pattern0 = filename:join([BaseDir, "shards", "*", DbNamePattern, "*"]),
     Pattern = binary_to_list(iolist_to_binary(Pattern0)),
-    DirList = filelib:wildcard(Pattern),
-    SigDirs = [{filename:rootname(D), D} || D <- DirList],
+    DirListStrs = filelib:wildcard(Pattern),
+    DirList = [iolist_to_binary(DL) || DL <- DirListStrs],
 
-    % Remove any active sigs
-    DeadSigDirs = lists:foldl(fun(Sig, Acc) ->
-        lists:keydelete(Sig, 1, Acc)
-    end, SigDirs, ActiveSigs),
+    % Create the list of active index directories
+    LocalShards = mem3:local_shards(DbName),
+    ActiveDirs = lists:foldl(fun(LS, AccOuter) ->
+        lists:foldl(fun(Sig, AccInner) ->
+            DirName = filename:join([BaseDir, LS#shard.name, Sig]),
+            [DirName | AccInner]
+        end, AccOuter, ActiveSigs)
+    end, [], LocalShards),
+
+    DeadDirs = DirList -- ActiveDirs,
 
     % Destroy anything that remains
-    lists:foreach(fun({_Sig, IdxDir}) ->
-        hastings_index:destroy(IdxDir)
-    end, DeadSigDirs).
+    lists:foreach(fun(IdxDir) ->
+        try
+            hastings_index:destroy(IdxDir),
+            file:del_dir(IdxDir)
+        catch E:T ->
+            Stack = erlang:get_stacktrace(),
+            twig:log(error, "Failed to remove hastings index directory: ~p ~p",
+                [{E, T}, Stack])
+        end
+    end, DeadDirs).
