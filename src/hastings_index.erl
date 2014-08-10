@@ -269,7 +269,7 @@ handle_info({'EXIT', Pid, Reason}, #st{index=#h_idx{pid={Pid}}} = St) ->
     {stop, normal, St};
 handle_info({'DOWN', _, _, DbPid, Reason}, #st{dbpid=DbPid} = St) ->
     Fmt = "~s ~s closing: Db pid ~p closing w/ reason ~w",
-    ?LOG_INFO(Fmt, [?MODULE, index_name(St#st.index), DbPid, Reason]),
+    ?LOG_DEBUG(Fmt, [?MODULE, index_name(St#st.index), DbPid, Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
     {stop, normal, St};
 handle_info({'DOWN', _, _, _, _}, St) ->
