@@ -111,14 +111,38 @@ start_cleaner(St) ->
 
 
 clean_db(DbName) ->
-    try
-        {ok, JsonDDocs} = fabric:design_docs(DbName),
-        DDocs = [couch_doc:from_json_obj(DD) || DD <- JsonDDocs],
-        ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1, DDocs)),
-        twig:log(err, "SIGS: ~s ~p", [DbName, ActiveSigs]),
-        cleanup(DbName, ActiveSigs)
-    catch error:database_does_not_exist ->
-        ok
+    {ok, JsonDDocs} = get_ddocs(DbName),
+    DDocs = [couch_doc:from_json_obj(DD) || DD <- JsonDDocs],
+    ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1, DDocs)),
+    twig:log(err, "SIGS: ~s ~p", [DbName, ActiveSigs]),
+    cleanup(DbName, ActiveSigs).
+
+
+get_ddocs(DbName) ->
+    {_, Ref} = spawn_monitor(fun() ->
+        try fabric:design_docs(DbName) of
+            {ok, DDocs} ->
+                exit({ok, DDocs})
+        catch
+            throw:Reason ->
+                exit({throw, Reason});
+            error:Reason ->
+                exit({error, Reason});
+            exit:Reason ->
+                exit({exit, Reason})
+        end
+    end),
+    receive
+        {'DOWN', Ref, _, _, {ok, DDocs}} ->
+            {ok, DDocs};
+        {'DOWN', Ref, _, _, {throw, Reason}} ->
+            throw(Reason);
+        {'DOWN', Ref, _, _, {error, database_does_not_exist}} ->
+            exit(normal);
+        {'DOWN', Ref, _, _, {error, Reason}} ->
+            erlang:error(Reason);
+        {'DOWN', Ref, _, _, {exit, Reason}} ->
+            erlang:exit(Reason)
     end.
 
 
