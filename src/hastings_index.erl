@@ -450,7 +450,7 @@ index_name(#h_idx{dbname=DbName, ddoc_id=DDocId, name=IndexName}) ->
 
 
 index_directory(DbName, Sig) ->
-    GeoDir = config:get("hastings", "geo_index_dir", "/srv/geo_index"),
+    GeoDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
     filename:join([GeoDir, DbName, Sig]).
 
 

@@ -129,7 +129,7 @@ active_sigs(#doc{body={Fields}}=Doc) ->
 
 
 cleanup(DbName, ActiveSigs) ->
-    BaseDir = config:get("hastings", "geo_index", "/srv/geo_index"),
+    BaseDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
 
     % Generate {Sig, IdxDir} mappings
     Pattern0 = filename:join([BaseDir, "shards", "*", DbName, "*"]),
