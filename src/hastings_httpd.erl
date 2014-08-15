@@ -14,7 +14,22 @@
 ]).
 
 
-handle_search_req(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
+handle_search_req(Req, Db, DDoc) ->
+    check_enabled(),
+    handle_search_req_int(Req, Db, DDoc).
+
+
+handle_info_req(Req, Db, DDoc) ->
+    check_enabled(),
+    handle_info_req_int(Req, Db, DDoc).
+
+
+handle_cleanup_req(Req, Db) ->
+    check_enabled(),
+    handle_cleanup_req_int(Req, Db).
+
+
+handle_search_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
         when length(PP) == 5 ->
     DbName = couch_db:name(Db),
     IndexName = lists:nth(5, PP),
@@ -28,11 +43,11 @@ handle_search_req(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
         {timeout, _} ->
             chttpd:send_error(Req, <<"Timeout in server request">>)
     end;
-handle_search_req(Req, _Db, _DDoc) ->
+handle_search_req_int(Req, _Db, _DDoc) ->
     chttpd:send_method_not_allowed(Req, "GET").
 
 
-handle_info_req(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
+handle_info_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
         when length(PP) == 5 ->
     DbName = couch_db:name(Db),
     DDocId = DDoc#doc.id,
@@ -46,15 +61,24 @@ handle_info_req(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
         {error, Reason} ->
             chttpd:send_error(Req, Reason)
     end;
-handle_info_req(Req, _Db, _DDoc) ->
+handle_info_req_int(Req, _Db, _DDoc) ->
     chttpd:send_method_not_allowed(Req, "GET").
 
 
-handle_cleanup_req(#httpd{method='POST'}=Req, Db) ->
+handle_cleanup_req_int(#httpd{method='POST'}=Req, Db) ->
     ok = hastings_vacuum:cleanup(couch_db:name(Db)),
     chttpd:send_json(Req, 202, {[{ok, true}]});
-handle_cleanup_req(Req, _Db) ->
+handle_cleanup_req_int(Req, _Db) ->
     chttpd:send_method_not_allowed(Req, "POST").
+
+
+check_enabled() ->
+    case config:get("hastings", "enabled", "false") of
+        "true" ->
+            ok;
+        _ ->
+            throw(payment_required)
+    end.
 
 
 hits_to_json(Hits, HQArgs) ->
