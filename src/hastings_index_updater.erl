@@ -43,7 +43,6 @@ update(IndexPid, Index) ->
 
         couch_task_status:add_task([
             {type, geo_search_indexer},
-            {user, cloudant_util:customer_name(Db)},
             {database, DbName},
             {design_document, DDocId},
             {index, IndexName},
