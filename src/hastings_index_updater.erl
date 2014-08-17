@@ -118,7 +118,7 @@ load_docs(FDI, _, Acc) ->
     % Force a checkpoint every minute
     case timer:now_diff(Now = os:timestamp(), Acc#acc.prev_cp) >= 60000000 of
         true ->
-            ok = hastings_index:checkpoint(Acc#acc.idx_pid, Seq),
+            ok = hastings_index:set_update_seq(Acc#acc.idx_pid, Seq),
             {ok, Acc#acc{changes_done = ChangesDone + 1, prev_cp = Now}};
         false ->
             {ok, Acc#acc{changes_done = ChangesDone + 1}}
