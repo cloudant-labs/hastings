@@ -87,7 +87,7 @@ get_update_seq(DbName) ->
 get_or_create_db(DbName, Options) ->
     case couch_db:open_int(DbName, Options) of
         {not_found, no_db_file} ->
-            twig:log(warn, "~s creating ~s", [?MODULE, DbName]),
+            couch_log:warning("~s creating ~s", [?MODULE, DbName]),
             couch_server:create(DbName, Options);
         Else ->
             Else

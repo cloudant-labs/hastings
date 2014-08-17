@@ -114,7 +114,6 @@ clean_db(DbName) ->
     {ok, JsonDDocs} = get_ddocs(DbName),
     DDocs = [couch_doc:from_json_obj(DD) || DD <- JsonDDocs],
     ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1, DDocs)),
-    twig:log(err, "SIGS: ~s ~p", [DbName, ActiveSigs]),
     cleanup(DbName, ActiveSigs).
 
 
@@ -187,7 +186,7 @@ cleanup(DbName, ActiveSigs) ->
             file:del_dir(IdxDir)
         catch E:T ->
             Stack = erlang:get_stacktrace(),
-            twig:log(error, "Failed to remove hastings index directory: ~p ~p",
+            couch_log:error("Failed to remove hastings index directory: ~p ~p",
                 [{E, T}, Stack])
         end
     end, DeadDirs).
