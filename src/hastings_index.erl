@@ -402,6 +402,7 @@ get_index_type(IdxProps) ->
     case couch_util:get_value(<<"type">>, IdxProps, <<"rtree">>) of
         <<"rtree">> -> <<"rtree">>;
         <<"tprtree">> -> <<"tprtree">>;
+        <<"mvrtree">> -> <<"mvrtree">>;
         Else -> throw({invalid_index_type, Else})
     end.
 
