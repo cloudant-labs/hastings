@@ -39,7 +39,7 @@
     stale = false,
     stable = false,
     include_docs = false,
-    include_geoms = false,
+    include_geoms = true,
     bookmark = [],
 
     extra = []
