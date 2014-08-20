@@ -89,12 +89,11 @@ hits_to_json(Hits, HQArgs) ->
 
 hits_to_json0(Hits, Bookmark) ->
     Geoms = lists:map(fun(H) ->
-        Dist = [{<<"distance">>, H#h_hit.dist}],
         Doc = case H#h_hit.doc of
             undefined -> [];
             Doc0 -> [{doc, Doc0}]
         end,
-        Properties = {Dist ++ Doc},
+        Properties = {Doc},
         Geom = case H#h_hit.geom of
             undefined -> null;
             Geom0 -> Geom0
