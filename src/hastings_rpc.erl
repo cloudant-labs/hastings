@@ -1,115 +1,114 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 -module(hastings_rpc).
+
+
 -include_lib("couch/include/couch_db.hrl").
+-include_lib("mem3/include/mem3.hrl").
 -include("hastings.hrl").
--import(couch_query_servers, [get_os_process/1, ret_os_process/1, proc_prompt/2]).
 
-% public api.
--export([search/4, info/3, cleanup/1, cleanup/2]).
 
-search(DbName, DDoc, IndexName, QueryArgs) ->
-    erlang:put(io_priority, {interactive, DbName}),
+-export([
+    search/4,
+    info/3
+]).
+
+
+search(Shard, DDocInfo, IndexName, HQArgs0) ->
+    erlang:put(io_priority, {interactive, Shard#shard.name}),
+    DDoc = get_ddoc(Shard, DDocInfo),
+    HQArgs = set_bookmark(Shard, HQArgs0),
+    AwaitSeq = get_await_seq(Shard#shard.name, HQArgs),
+    Pid = get_index_pid(Shard#shard.name, DDoc, IndexName),
+    case hastings_index:await(Pid, AwaitSeq) of
+        ok -> ok;
+        Error -> reply(Error)
+    end,
+    case hastings_index:search(Pid, HQArgs) of
+        {ok, Results0} ->
+            Results = lists:map(fun(R) -> fmt_result(Shard, R) end, Results0),
+            reply({ok, Results});
+        Else ->
+            reply(Else)
+    end.
+
+
+info(Shard, DDocInfo, IndexName) ->
+    erlang:put(io_priority, {interactive, Shard#shard.name}),
+    DDoc = get_ddoc(Shard, DDocInfo),
+    Pid = get_index_pid(Shard#shard.name, DDoc, IndexName),
+    reply(hastings_index:info(Pid)).
+
+
+get_ddoc(Shard, {DDocId, Rev}) ->
+    {ok, DDoc} = ddoc_cache:open_doc(Shard#shard.dbname, DDocId, Rev),
+    DDoc;
+get_ddoc(_Shard, DDoc) ->
+    DDoc.
+
+
+set_bookmark(#shard{node=N, range=R}, #h_args{bookmark=Bookmark} = HQArgs) ->
+    case lists:keyfind({N, R}, 1, Bookmark) of
+        {{N, R}, Value} ->
+            HQArgs#h_args{bookmark = Value};
+        _ ->
+            HQArgs#h_args{bookmark = undefined}
+    end.
+
+
+get_index_pid(DbName, DDoc, IndexName) ->
+    Index = case hastings_index:design_doc_to_index(DDoc, IndexName) of
+        {ok, Index0} -> Index0;
+        Error1 -> reply(Error1)
+    end,
+    case hastings_index_manager:get_index(DbName, Index) of
+        {ok, Pid} -> Pid;
+        Error2 -> reply(Error2)
+    end.
+
+
+get_await_seq(DbName, HQArgs) ->
+    case HQArgs#h_args.stale of
+        true -> 0;
+        update_after -> 0;
+        false -> get_update_seq(DbName)
+    end.
+
+
+get_update_seq(DbName) ->
     {ok, Db} = get_or_create_db(DbName, []),
-    #index_query_args{
-        stale = Stale
-    } = QueryArgs,
-
-    {_LastSeq, MinSeq} = calculate_seqs(Db, Stale),
-    case hastings_index:design_doc_to_index(DDoc, IndexName) of
-        {ok, Index} ->
-            case hastings_index_manager:get_index(DbName, Index) of
-                {ok, Pid} ->
-                    case hastings_index:await(Pid, MinSeq) of
-                        ok ->
-                            Result = hastings_index:search(Pid, QueryArgs),
-                            rexi:reply(Result);
-                        Error ->
-                            rexi:reply(Error)
-                    end;
-                Error ->
-                    rexi:reply(Error)
-            end;
-        Error ->
-            rexi:reply(Error)
+    try
+        couch_db:get_update_seq(Db)
+    after
+        couch_db:close(Db)
     end.
 
-info(DbName, DDoc, IndexName) ->
-    erlang:put(io_priority, {interactive, DbName}),
-    case hastings_index:design_doc_to_index(DDoc, IndexName) of
-        {ok, Index} ->
-            case hastings_index_manager:get_index(DbName, Index) of
-                {ok, Pid} ->
-                    Result = hastings_index:info(Pid),
-                    rexi:reply(Result);
-                Error ->
-                    rexi:reply(Error)
-            end;
-        Error ->
-            rexi:reply(Error)
-    end.
-
-cleanup(DbName) ->
-    cleanup(DbName, []).
-
-cleanup(<<"shards", _/binary>>=ShardName, ActiveSigs) ->
-    cleanup(mem3:dbname(ShardName), ActiveSigs);            
-
-cleanup(DbName, _ActiveSigs) ->
-    % get all geo indexes for this database
-    % leave active indexes
-    try fabric:design_docs(DbName) of 
-        {ok, DesignDocs} ->
-            {ok, DesignDocs} = fabric:design_docs(DbName),
-        ActiveSigs = lists:map(fun(#doc{id = GroupId}) ->
-             {ok, Info} = fabric:get_view_group_info(DbName, GroupId),
-             binary_to_list(couch_util:get_value(signature, Info))
-        end, [couch_doc:from_json_obj(DD) || DD <- DesignDocs]),
-
-
-        % get all indexes for database
-        % list all .geo and .geopriv
-        FileList = filelib:wildcard([config:get("couchdb", "view_index_dir"),
-                  couch_util:to_list(DbName), "*.geo*"]),
-
-        % this can be slow for now, speed up later 
-        % lists:member is slow
-        lists:foreach(fun(Sig) ->
-             % sig should be the name of each Sig after path is removed
-             ASig = filename:rootname(filename:basename(Sig)),
-             case lists:member(ASig, ActiveSigs) of
-                 false ->
-                     % get the erl_spatial index and destory it
-                     case hastings_index_manager:get_index(DbName, Sig) of 
-                         {ok, Pid} ->
-                             hastings_index:delete_index(Pid);
-                         _ ->
-                             ok
-                     end;
-                 _ ->
-                     ok
-             end
-        end, FileList),
-        ok
-    catch error:database_does_not_exist ->
-        ok
-    end.
 
 get_or_create_db(DbName, Options) ->
     case couch_db:open_int(DbName, Options) of
-    {not_found, no_db_file} ->
-        twig:log(warn, "~p creating ~s", [?MODULE, DbName]),
-        couch_server:create(DbName, Options);
-    Else ->
-        Else
+        {not_found, no_db_file} ->
+            twig:log(warn, "~s creating ~s", [?MODULE, DbName]),
+            couch_server:create(DbName, Options);
+        Else ->
+            Else
     end.
 
-calculate_seqs(Db, Stale) ->
-    LastSeq = couch_db:get_update_seq(Db),
-    if
-        Stale == ok orelse Stale == update_after ->
-            {LastSeq, 0};
-        true ->
-            {LastSeq, LastSeq}
-    end.
+
+fmt_result(Shard, {DocId, Dist}) ->
+    #h_hit{
+        id = DocId,
+        dist = Dist,
+        shard = {Shard#shard.node, Shard#shard.range}
+    };
+fmt_result(Shard, {DocId, Dist, Geom}) ->
+    #h_hit{
+        id = DocId,
+        dist = Dist,
+        geom = Geom,
+        shard = {Shard#shard.node, Shard#shard.range}
+    }.
+
+
+reply(Msg) ->
+    rexi:reply(Msg),
+    exit(normal).

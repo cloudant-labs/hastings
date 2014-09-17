@@ -1,265 +1,252 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 -module(hastings_httpd).
 
--export([handle_search_req/3, handle_info_req/3, handle_cleanup_req/2]).
+
 -include("hastings.hrl").
 -include_lib("couch/include/couch_db.hrl").
--import(chttpd, [send_method_not_allowed/2, send_json/2, send_json/3,
-                 send_response/4, send_error/2]).
 
-handle_search_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
-                  ,#db{name=DbName}, DDoc) ->
-    % match query args against open search / leaflet string
-    QueryArgs = #index_query_args{
-        bbox = BBox,
-        wkt=Wkt,
-        radius=Radius,
-        range_x=EllipseX,
-        range_y=EllipseY,
-        x=X,
-        y=Y,
-        include_docs = IncludeDocs
-    } = parse_index_params(Req),
-    % check we have at least one of radius, wkt, bbox or ellipse
-    case (BBox == undefined ) and (Wkt == undefined) and
-        ((Radius == undefined) and (X == undefined) and (Y == undefined)) and
-        ((EllipseX == undefined) and (EllipseY == undefined) and (X == undefined) and (Y == undefined)) of
-    true ->
-        Msg = <<"must include a query argument argument">>,
-        throw({query_parse_error, Msg});
-    _ ->
-        ok
-    end,
 
-    % TODO look at geojson spec to see how to add TotalHits
-    case page_results(DbName, DDoc, IndexName, QueryArgs, 0, 0, []) of
-    {ok, _TotalHits, Hits0} ->
-        Hits = [
-            begin
-                case IncludeDocs of
-                true ->
-                    Body = case fabric:open_doc(DbName, Id, []) of
-                    {ok, Doc} ->
-                        {Resp} = Doc#doc.body,
-                        Resp;
-                    {not_found, _} -> null
-                    end,
-                    case lists:keyfind(<<"type">>, 1, Body) of
-                    false ->
-                        {[{type, <<"Feature">>}, {id, Id} | Body]};
-                    _ ->
-                        {[{id, Id} | Body]}
-                    end;
-                false ->
-                    {[{id, Id}]}
-                end
-            end || {Id, _} <- Hits0
-        ],
-        send_json(Req, 200, {[
-            {type, <<"FeatureCollection">>},
-            {features, Hits}
-        ]});
-    {error, Reason} ->
-        send_error(Req, Reason);
-    {timeout, _} ->
-        send_error(Req, <<"Timeout in server request">>)
+-export([
+    handle_search_req/3,
+    handle_info_req/3,
+    handle_cleanup_req/2
+]).
+
+
+handle_search_req(Req, Db, DDoc) ->
+    check_enabled(),
+    handle_search_req_int(Req, Db, DDoc).
+
+
+handle_info_req(Req, Db, DDoc) ->
+    check_enabled(),
+    handle_info_req_int(Req, Db, DDoc).
+
+
+handle_cleanup_req(Req, Db) ->
+    check_enabled(),
+    handle_cleanup_req_int(Req, Db).
+
+
+handle_search_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
+        when length(PP) == 5 ->
+    DbName = couch_db:name(Db),
+    IndexName = lists:nth(5, PP),
+    HQArgs = parse_search_req(Req),
+    case hastings_fabric_search:go(DbName, DDoc, IndexName, HQArgs) of
+        {ok, Hits} ->
+            ResultJson = hits_to_json(Hits, HQArgs),
+            chttpd:send_json(Req, 200, ResultJson);
+        {error, Reason} ->
+            chttpd:send_error(Req, Reason);
+        {timeout, _} ->
+            chttpd:send_error(Req, <<"Timeout in server request">>)
     end;
+handle_search_req_int(Req, _Db, _DDoc) ->
+    chttpd:send_method_not_allowed(Req, "GET").
 
-handle_search_req(Req, _Db, _DDoc) ->
-    send_method_not_allowed(Req, "GET").
 
-handle_info_req(#httpd{method='GET', path_parts=[_, _, _, _, IndexName]}=Req
-                  ,#db{name=DbName}, #doc{id=Id}=DDoc) ->
+handle_info_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
+        when length(PP) == 5 ->
+    DbName = couch_db:name(Db),
+    DDocId = DDoc#doc.id,
+    IndexName = lists:last(PP),
     case hastings_fabric_info:go(DbName, DDoc, IndexName) of
         {ok, IndexInfoList} ->
-            send_json(Req, 200, {[
-                {name,  <<Id/binary,"/",IndexName/binary>>},
-                {search_index, {IndexInfoList}}
+            chttpd:send_json(Req, 200, {[
+                {name,  <<DDocId/binary,"/",IndexName/binary>>},
+                {geo_index, {IndexInfoList}}
             ]});
         {error, Reason} ->
-            send_error(Req, Reason)
+            chttpd:send_error(Req, Reason)
     end;
-handle_info_req(Req, _Db, _DDoc) ->
-    send_method_not_allowed(Req, "GET").
+handle_info_req_int(Req, _Db, _DDoc) ->
+    chttpd:send_method_not_allowed(Req, "GET").
 
-handle_cleanup_req(#httpd{method='POST'}=Req, #db{name=DbName}) ->
-    ok = hastings_fabric_cleanup:go(DbName),
-    send_json(Req, 202, {[{ok, true}]});
-handle_cleanup_req(Req, _Db) ->
-    send_method_not_allowed(Req, "POST").
 
-parse_index_params(Req) when not is_list(Req) ->
-    IndexParams = lists:flatmap(fun({K, V}) -> parse_index_param(K, V) end,
-        chttpd:qs(Req)),
-    parse_index_params(IndexParams);
-parse_index_params(IndexParams) ->
-    Args = #index_query_args{},
-    lists:foldl(fun({K, V}, Args2) ->
-        validate_index_query(K, V, Args2)
-    end, Args, IndexParams).
+handle_cleanup_req_int(#httpd{method='POST'}=Req, Db) ->
+    ok = hastings_vacuum:cleanup(couch_db:name(Db)),
+    chttpd:send_json(Req, 202, {[{ok, true}]});
+handle_cleanup_req_int(Req, _Db) ->
+    chttpd:send_method_not_allowed(Req, "POST").
 
-validate_index_query(bbox, Value, Args) ->
-    Args#index_query_args{bbox=Value};
-validate_index_query(g, Value, Args) ->
-    Args#index_query_args{wkt=Value};
-validate_index_query(relation, Value, Args) ->
-    Args#index_query_args{relation=Value};
-validate_index_query(radius, Value, Args) ->
-    Args#index_query_args{radius=Value};
-validate_index_query(y, Value, Args) ->
-    Args#index_query_args{y=Value};
-validate_index_query(x, Value, Args) ->
-    Args#index_query_args{x=Value};
-validate_index_query(stale, Value, Args) ->
-    Args#index_query_args{stale=Value};
-validate_index_query(limit, Value, Args) ->
-    Args#index_query_args{limit=Value};
-validate_index_query(include_docs, Value, Args) ->
-    Args#index_query_args{include_docs=Value};
-validate_index_query(startIndex, Value, Args) ->
-    Args#index_query_args{startIndex=Value};
-validate_index_query(srs, Value, Args) ->
-    Args#index_query_args{srs=Value};
-validate_index_query(responseSrs, Value, Args) ->
-    Args#index_query_args{responseSrs=Value};
-validate_index_query(range_x, Value, Args)->
-    Args#index_query_args{range_x=Value};
-validate_index_query(range_y, Value, Args)->
-    Args#index_query_args{range_y=Value};
-validate_index_query(nearest, Value, Args)->
-    Args#index_query_args{nearest=Value};
-validate_index_query(tStart, Value, Args)->
-    Args#index_query_args{tStart=Value};
-validate_index_query(tEnd, Value, Args)->
-    Args#index_query_args{tEnd=Value};
-validate_index_query(extra, _Value, Args) ->
-    Args.
 
-parse_index_param("", _) ->
-    [];
-parse_index_param("bbox", Value) ->
-    Vals = string:tokens(Value, ","),
-    case length(Vals) rem 2 of
-    0 ->
-        [{bbox, [parse_float_param(V)|| V <- Vals]}];
-    _ ->
-        Msg = io_lib:format("Invalid value for bbox parameter: ~p", [Vals]),
-        throw({query_parse_error, ?l2b(Msg)})
-    end;
-parse_index_param("g", Value) ->
-    [{g, Value}];
-parse_index_param("relation", Value) ->
-    [{relation, Value}];
-parse_index_param("radius", Value) ->
-    [{radius, parse_float_param(Value)}];
-parse_index_param("lat", Value) ->
-    [{y, parse_float_param(Value)}];
-parse_index_param("lon", Value) ->
-    [{x, parse_float_param(Value)}];
-parse_index_param("y", Value) ->
-    [{y, parse_float_param(Value)}];
-parse_index_param("x", Value) ->
-    [{x, parse_float_param(Value)}];
-parse_index_param("limit", Value) ->
-    [{limit, parse_positive_int_param(Value)}];
-parse_index_param("stale", "ok") ->
-    [{stale, ok}];
-parse_index_param("stale", _Value) ->
-    throw({query_parse_error, <<"stale only available as stale=ok">>});
-parse_index_param("include_docs", Value) ->
-    [{include_docs, parse_bool_param(Value)}];
-parse_index_param("startIndex", Value) ->
-    [{startIndex, parse_positive_int_param(Value)}];
-parse_index_param("srs", Value) ->
-    [{srs, Value}];
-parse_index_param("responseSrs", Value) ->
-    [{responseSrs, Value}];
-parse_index_param("rangex", Value) ->
-    [{range_x, parse_float_param(Value)}];
-parse_index_param("rangey", Value) ->
-    [{range_y, parse_float_param(Value)}];
-parse_index_param("nearest", Value) ->
-    [{nearest, parse_bool_param(Value)}];
-parse_index_param("start", Value) ->
-    [{tStart, parse_float_param(Value)}];
-parse_index_param("end", Value) ->
-    [{tEnd, parse_float_param(Value)}];
-parse_index_param(Key, Value) ->
-    [{extra, {Key, Value}}].
-
-%% VV copied from chttpd_view.erl
-parse_bool_param("true") -> true;
-parse_bool_param("false") -> false;
-parse_bool_param(Val) ->
-    Msg = io_lib:format("Invalid value for boolean parameter: ~p", [Val]),
-    throw({query_parse_error, ?l2b(Msg)}).
-
-parse_int_param(Val) ->
-    case (catch list_to_integer(Val)) of
-    IntVal when is_integer(IntVal) ->
-        IntVal;
-    _ ->
-        Msg = io_lib:format("Invalid value for integer parameter: ~p", [Val]),
-        throw({query_parse_error, ?l2b(Msg)})
+check_enabled() ->
+    case config:get("hastings", "enabled", "false") of
+        "true" ->
+            ok;
+        _ ->
+            throw(payment_required)
     end.
 
-parse_float_param(Val) ->
-    case string:to_float(Val) of
-    {error,no_float} -> list_to_integer(Val);
-    {F,_Rest} -> F
-    end.
 
-parse_positive_int_param(Val) ->
-    MaximumVal = list_to_integer(
-        config:get("hastings", "max_limit", "200")),
-    case parse_int_param(Val) of
-    IntVal when IntVal > MaximumVal ->
-        Fmt = "Value for limit is too large, must not exceed ~p",
-        Msg = io_lib:format(Fmt, [MaximumVal]),
-        throw({query_parse_error, ?l2b(Msg)});
-    IntVal when IntVal >= 0 ->
-        IntVal;
-    _ ->
-        Fmt = "Invalid value for positive integer parameter: ~p",
-        Msg = io_lib:format(Fmt, [Val]),
-        throw({query_parse_error, ?l2b(Msg)})
-    end.
+hits_to_json(Hits, HQArgs) ->
+    Bookmark = hastings_bookmark:update(HQArgs#h_args.bookmark, Hits),
+    BookmarkJson = hastings_bookmark:pack(Bookmark),
+    hits_to_json0(Hits, BookmarkJson).
 
-page_results(DbName, DDoc, IndexName, #index_query_args{
-        limit=Limit,
-        startIndex=StartIndex,
-        currentPage=CurrentPage,
-        nearest=Nearest
-    } = QueryArgs, CurrentIndex, TotalHits, HitsAcc) ->
-    case (CurrentIndex + TotalHits) > StartIndex of
-    true ->
-        % stop here, we have gone past the index point,
-        % result limit should always be less than page limit
-        % note not an error to go over list length with sublist
-        Hits0 = case Nearest of
-          true ->
-            % TODO sort by nearest
-            HitsAcc;
-          _ ->
-            lists:sublist(lists:keysort(1, HitsAcc), StartIndex + 1, Limit)
+
+hits_to_json0(Hits, Bookmark) ->
+    Geoms = lists:map(fun(H) ->
+        Doc = case H#h_hit.doc of
+            undefined -> [];
+            Doc0 -> [{doc, Doc0}]
         end,
-        {ok, length(Hits0), Hits0};
-    _ ->
-        case hastings_fabric_search:go(DbName, DDoc, IndexName, QueryArgs) of
-            {ok, 0, _} ->
-               {ok, 0, HitsAcc};
-            {ok, TotalHits0, Hits0} ->
-                case CurrentPage rem 2 of
-                0 ->
-                    page_results(DbName, DDoc, IndexName, QueryArgs#index_query_args{currentPage=CurrentPage + 1}, CurrentIndex + TotalHits0,
-                    TotalHits0, HitsAcc ++ Hits0);
-                _ ->
-                    page_results(DbName, DDoc, IndexName, QueryArgs#index_query_args{currentPage=CurrentPage + 1}, CurrentIndex + TotalHits0,
-                    TotalHits0, HitsAcc ++ Hits0)
-                end;
-            Error ->
-                Error
-        end
+        Properties = {Doc},
+        Geom = case H#h_hit.geom of
+            undefined -> null;
+            Geom0 -> Geom0
+        end,
+        {[
+            {<<"id">>, H#h_hit.id},
+            {<<"geometry">>, Geom},
+            {<<"properties">>, Properties}
+        ]}
+    end, Hits),
+    {[
+        {<<"bookmark">>, Bookmark},
+        {<<"type">>, <<"FeatureCollection">>},
+        {<<"features">>, Geoms}
+    ]}.
+
+
+parse_search_req(Req) ->
+    Params = hastings_httpd_util:parse_query(Req, search_parameters()),
+    set_record_fields(#h_args{geom = get_geometry(Params)}, Params).
+
+
+get_geometry(Params) ->
+    WKT = lists:keyfind(wkt, 1, Params),
+    BBox = lists:keyfind(bbox, 1, Params),
+    Circle = get_geometry(circle, [x, y, r], Params),
+    Ellipse = get_geometry(ellipse, [x, y, x_range, y_range], Params),
+    Filt = fun(false) -> false; (_) -> true end,
+    Geoms = lists:filter(Filt, [WKT, BBox, Circle, Ellipse]),
+    case Geoms of
+        [] ->
+            throw({query_parse_error, "No geometry query specified."});
+        [Geom] ->
+            Geom;
+        [_|_] ->
+            throw({query_parse_error, "Multiple geometry queries specified."})
     end.
+
+
+get_geometry(Name, Params, AllParams) ->
+    Values = [lists:keyfind(P, 1, AllParams) || P <- Params],
+    case lists:member(false, Values) of
+        true ->
+            false;
+        false ->
+            {Name, list_to_tuple([element(2, P) || P <- Values])}
+    end.
+
+
+set_record_fields(HQArgs0, Params) ->
+    HQArgs = lists:foldl(fun({Key, Val}, ArgAcc) ->
+        Idx = case Key of
+            nearest ->          #h_args.nearest;
+            filter ->           #h_args.filter;
+            req_srid ->         #h_args.req_srid;
+            resp_srid ->        #h_args.resp_srid;
+            vbox ->             #h_args.vbox;
+            t_start ->          #h_args.t_start;
+            t_end ->            #h_args.t_end;
+            limit ->            #h_args.limit;
+            skip ->             #h_args.skip;
+            stale ->            #h_args.stale;
+            stable ->           #h_args.stable;
+            include_docs ->     #h_args.include_docs;
+            include_geoms ->    #h_args.include_geoms;
+            bookmark ->         #h_args.bookmark;
+            extra ->            extra;
+            _ ->                ignore
+        end,
+        case Idx of
+            I when is_integer(I) ->
+                setelement(Idx, ArgAcc, Val);
+            extra ->
+                E = ArgAcc#h_args.extra,
+                ArgAcc#h_args{extra = [Val | E]};
+            ignore ->
+                ArgAcc
+        end
+    end, HQArgs0, Params),
+    % Check for our geometry/filter combinations for
+    % acceptability and to set the default relation.
+    Default = case HQArgs#h_args.geom of
+        {bbox, Coords} when length(Coords) > 4 ->
+            % If a user specifies a bonding box with more
+            % than two dimension we need to make sure they
+            % aren't trying to use a filter as that would
+            % return meaningless results due to how libgeos
+            % works.
+            case HQArgs#h_args.filter of
+                undefined ->
+                    none;
+                none ->
+                    none;
+                _ ->
+                    throw({query_parse_error, filter_with_md_bbox})
+            end;
+        {bbox, _Coords} ->
+            % All bbox queries default to a basic MBR
+            % query. Fancy relationships need to be
+            % requested specifically.
+            none;
+        _ when not HQArgs#h_args.nearest ->
+            intersects;
+        _ ->
+            none
+    end,
+    Filter = case HQArgs#h_args.filter of
+        undefined -> Default;
+        Else -> Else
+    end,
+    HQArgs#h_args{filter = Filter}.
+
+
+search_parameters() ->
+    [
+        % Query/Geometry parameters
+        {<<"g">>,               wkt,            to_string},
+        {<<"geometry">>,        wkt,            to_string},
+        {<<"bbox">>,            bbox,           to_bbox},
+        {<<"x">>,               x,              to_float},
+        {<<"y">>,               y,              to_float},
+        {<<"r">>,               r,              to_float},
+        {<<"x_range">>,         x_range,        to_float},
+        {<<"y_range">>,         y_range,        to_float},
+
+        % Geo parameters
+        {<<"nearest">>,         nearest,        to_bool},
+        {<<"filter">>,          filter,         to_filter},
+        {<<"srid">>,            req_srid,       to_string},
+        {<<"response_srid">>,   resp_srid,      to_string},
+
+        % Temporal parameters
+        {<<"vbox">>,            vbox,           to_bbox},
+        {<<"start">>,           t_start,        to_float},
+        {<<"end">>,             t_end,          to_float},
+
+        % Result set parameters
+        {<<"limit">>,           limit,          to_limit},
+        {<<"skip">>,            skip,           to_pos_int},
+        {<<"stale">>,           stale,          to_stale},
+        {<<"stable">>,          stable,         to_bool},
+        {<<"include_docs">>,    include_docs,   to_bool},
+        {<<"include_geoms">>,   include_geoms,  to_bool},
+        {<<"bookmark">>,        bookmark,       to_bookmark},
+
+        % Backwards compatibility
+        {<<"lon">>,             x,              to_float},
+        {<<"lat">>,             y,              to_float},
+        {<<"radius">>,          r,              to_float},
+        {<<"rangex">>,          x_range,        to_float},
+        {<<"rangey">>,          y_range,        to_float},
+        {<<"relation">>,        filter,         to_filter},
+        {<<"startIndex">>,      skip,           to_pos_int},
+        {<<"srs">>,             req_srid,       to_string},
+        {<<"responseSrs">>,     resp_srid,      to_string}
+    ].

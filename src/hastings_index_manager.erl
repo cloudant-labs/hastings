@@ -1,49 +1,86 @@
-%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
-%% Copyright 2012 Cloudant
+%% Copyright 2014 Cloudant
 
 -module(hastings_index_manager).
 -behavior(gen_server).
+
+
 -include_lib("couch/include/couch_db.hrl").
 -include("hastings.hrl").
+
 
 -define(BY_SIG, hastings_by_sig).
 -define(BY_PID, hastings_by_pid).
 
-% public api.
--export([start_link/0, get_index/2, handle_db_event/3]).
 
-% gen_server api.
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-    code_change/3]).
+-export([
+    start_link/0,
+    get_index/2,
+    upgrade/0
+]).
 
-% public functions.
+-export([
+    init/1,
+    terminate/2,
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2,
+    code_change/3
+]).
+
+-export([
+    new_index/4
+]).
+
+
+-record(st, {
+    generation = 0
+}).
+
+
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
 
 get_index(DbName, Index) ->
     gen_server:call(?MODULE, {get_index, DbName, Index}, infinity).
 
-% gen_server functions.
+
+upgrade() ->
+    gen_server:call(?MODULE, upgrade, infinity).
+
 
 init([]) ->
-    ets:new(?BY_SIG, [set, private, named_table]),
-    ets:new(?BY_PID, [set, private, named_table]),
-    couch_event:link_listener(?MODULE, handle_db_event, nil, [all_dbs]),
+    ets:new(?BY_SIG, [set, public, named_table]),
+    ets:new(?BY_PID, [set, public, named_table]),
     process_flag(trap_exit, true),
-    {ok, nil}.
+    {ok, #st{}}.
 
-handle_call({get_index, DbName, #index{sig=Sig}=Index}, From, State) ->
+
+terminate(_Reason, _State) ->
+    ok.
+
+
+handle_call({get_index, DbName, #h_idx{sig=Sig}=Index}, From, State) ->
+    Gen = State#st.generation,
     case ets:lookup(?BY_SIG, {DbName, Sig}) of
     [] ->
-        spawn_link(fun() -> new_index(DbName, Index) end),
+        spawn_link(?MODULE, new_index, [self(), DbName, Index, Gen]),
         ets:insert(?BY_SIG, {{DbName,Sig}, [From]}),
         {noreply, State};
     [{_, WaitList}] when is_list(WaitList) ->
         ets:insert(?BY_SIG, {{DbName, Sig}, [From | WaitList]}),
         {noreply, State};
     [{_, ExistingPid}] ->
+        hastings_index:add_monitor(ExistingPid, From),
         {reply, {ok, ExistingPid}, State}
     end;
+
+handle_call(upgrade, _From, State) ->
+    Gen = State#st.generation,
+    NewState = State#st{
+        generation = Gen + 1
+    },
+    {reply, Gen + 1, NewState};
 
 handle_call({open_ok, DbName, Sig, NewPid}, _From, State) ->
     link(NewPid),
@@ -58,16 +95,38 @@ handle_call({open_error, DbName, Sig, Error}, _From, State) ->
     ets:delete(?BY_SIG, {DbName, Sig}),
     {reply, ok, State}.
 
-handle_cast({cleanup, DbName}, State) ->
-    hastings_rpc:cleanup(DbName),
+
+handle_cast({gen_check, FromPid, Gen}, State) ->
+    case ets:lookup(?BY_PID, FromPid) of
+        [] ->
+            % An old index that we have since forgotten about.
+            % Its probably just indexing so ignore it and it'll
+            % go away on its own.
+            ok;
+        [{_, {DbName, Sig}}] ->
+            CurrGen = Gen == State#st.generation,
+            MaxOpen = ets:info(?BY_PID, size) > get_max_open(),
+            case CurrGen andalso not MaxOpen of
+                true ->
+                    ok;
+                false ->
+                    case hastings_index:stop(FromPid) of
+                        ok ->
+                            delete_from_ets(FromPid, DbName, Sig);
+                        false ->
+                            ok
+                    end
+            end
+    end,
     {noreply, State}.
+
 
 handle_info({'EXIT', FromPid, Reason}, State) ->
     case ets:lookup(?BY_PID, FromPid) of
     [] ->
         if Reason =/= normal ->
             ?LOG_ERROR("Exit on non-updater process: ~p", [Reason]),
-            exit(reason);
+            exit(Reason);
         true -> ok
         end;
     [{_, {DbName, Sig}}] ->
@@ -75,8 +134,6 @@ handle_info({'EXIT', FromPid, Reason}, State) ->
     end,
     {noreply, State}.
 
-terminate(_Reason, _State) ->
-    ok.
 
 code_change(_OldVsn, Ref, _Extra) when is_reference(Ref) ->
     demonitor(Ref),
@@ -84,17 +141,9 @@ code_change(_OldVsn, Ref, _Extra) when is_reference(Ref) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-% private functions
-handle_db_event(DbName, created, _St) ->
-    gen_server:cast(?MODULE, {cleanup, DbName}),
-    {ok, nil};
-handle_db_event(DbName, deleted, _St) ->
-    gen_server:cast(?MODULE, {cleanup, DbName}),
-    {ok, nil};
-handle_db_event(_DbName, _Event, _St) ->
-    {ok, nil}.
-new_index(DbName, #index{sig=Sig}=Index) ->
-    case hastings_index:start_link(DbName, Index) of
+
+new_index(Manager, DbName, #h_idx{sig=Sig}=Index, Generation) ->
+    case hastings_index:start_link(Manager, DbName, Index, Generation) of
     {ok, NewPid} ->
         Msg = {open_ok, DbName, Sig, NewPid},
         ok = gen_server:call(?MODULE, Msg, infinity),
@@ -104,11 +153,21 @@ new_index(DbName, #index{sig=Sig}=Index) ->
         ok = gen_server:call(?MODULE, Msg, infinity)
     end.
 
+
 add_to_ets(Pid, DbName, Sig) ->
     true = ets:insert(?BY_PID, {Pid, {DbName, Sig}}),
     true = ets:insert(?BY_SIG, {{DbName, Sig}, Pid}).
+
 
 delete_from_ets(Pid, DbName, Sig) ->
     true = ets:delete(?BY_PID, Pid),
     true = ets:delete(?BY_SIG, {DbName, Sig}).
 
+
+get_max_open() ->
+    MO = config:get("hastings", "open_index_soft_limit", "100"),
+    try
+        list_to_integer(MO)
+    catch _:_ ->
+        100
+    end.
