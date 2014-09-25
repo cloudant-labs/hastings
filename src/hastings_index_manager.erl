@@ -125,7 +125,7 @@ handle_info({'EXIT', FromPid, Reason}, State) ->
     case ets:lookup(?BY_PID, FromPid) of
     [] ->
         if Reason =/= normal ->
-            ?LOG_ERROR("Exit on non-updater process: ~p", [Reason]),
+            couch_log:error("Exit on non-updater process: ~p", [Reason]),
             exit(Reason);
         true -> ok
         end;
