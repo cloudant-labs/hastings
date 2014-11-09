@@ -79,8 +79,16 @@ maybe_add_docs(_DbName, Hits, _) ->
 
 add_docs(DbName, Hits) ->
     DocIds = [Id || #h_hit{id=Id} <- Hits],
+    % if docs are in geojson then just include properties
+    % else include the entire doc and it is up to the client
+    % note usually this is the former
     {ok, Docs} = hastings_util:get_json_docs(DbName, DocIds),
     lists:map(fun(H) ->
-        {_, Doc} = lists:keyfind(H#h_hit.id, 1, Docs),
-        H#h_hit{doc = Doc}
+        {_, {DocList}} = lists:keyfind(H#h_hit.id, 1, Docs),
+        case lists:keyfind(<<"properties">>, 1, DocList) of
+          {_, Props} ->
+            H#h_hit{doc=Props};
+          _ ->
+            H#h_hit{doc = {DocList}}
+        end
     end, Hits).

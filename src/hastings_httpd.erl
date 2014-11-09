@@ -91,7 +91,14 @@ hits_to_json0(Hits, Bookmark) ->
     Geoms = lists:map(fun(H) ->
         Doc = case H#h_hit.doc of
             undefined -> [];
-            Doc0 -> [{doc, Doc0}]
+            {DocList0} ->
+              % test: is this geojson properties or a couch doc
+              case lists:keyfind(<<"_id">>, 1, DocList0) of
+                {_, _} ->
+                  [{doc, {DocList0}}];
+                _ ->
+                  DocList0
+              end
         end,
         Properties = {Doc},
         Geom = case H#h_hit.geom of
