@@ -35,6 +35,11 @@
     code_change/3
 ]).
 
+-ifdef(TEST).
+
+-export([design_doc_to_index_int/3]).
+
+-endif.
 
 -record(st, {
     manager,
@@ -350,7 +355,9 @@ design_doc_to_index_int(Id, Fields, IndexName) ->
     end,
     case lists:keyfind(IndexName, 1, RawIndexes) of
         false ->
-            throw({not_found, <<IndexName/binary, " not found.">>});
+            Error = io_lib:format("Geospatial index '~s' not found",
+                [IndexName]),
+            throw({not_found, iolist_to_binary(Error)});
         {IndexName, {IdxProps}} ->
             Idx = #h_idx{
                 ddoc_id = Id,
@@ -364,7 +371,9 @@ design_doc_to_index_int(Id, Fields, IndexName) ->
             },
             {ok, set_index_sig(Idx)};
         _ ->
-            throw({invalid_index, <<IndexName/binary, " is invalid.">>})
+            Error = io_lib:format("Geospatial index '~s' is invalid",
+                [IndexName]),
+            throw({invalid_index, iolist_to_binary(Error)})
     end.
 
 
