@@ -13,6 +13,7 @@
     to_float/2,
     to_string/2,
     to_bookmark/2,
+    to_format/2,
     to_bbox/2,
     to_filter/2,
     to_limit/2,
@@ -113,6 +114,18 @@ to_bookmark(Name, Value) when is_binary(Value) ->
     end;
 to_bookmark(Name, Value) ->
     invalid_value("bookmark", Name, Value).
+
+
+to_format(_Name, null) ->
+    hastings_format_view;
+to_format(_Name, <<"view">>) ->
+    hastings_format_view;
+to_format(_Name, <<"geojson">>) ->
+    hastings_format_geojson;
+to_format(_Name, <<"application/vnd.geo+json">>) ->
+    hastings_format_geojson;
+to_format(_Name, BadValue) -> 
+    invalid_value("format name", "format", BadValue).
 
 
 to_bbox(Name, Value) when is_binary(Value) ->

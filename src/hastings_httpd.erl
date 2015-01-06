@@ -36,8 +36,9 @@ handle_search_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
     HQArgs = parse_search_req(Req),
     case hastings_fabric_search:go(DbName, DDoc, IndexName, HQArgs) of
         {ok, Hits} ->
-            ResultJson = hits_to_json(Hits, HQArgs),
-            chttpd:send_json(Req, 200, ResultJson);
+            Format = HQArgs#h_args.format,
+            {Hdrs, ResultJson} = Format:hits_to_json(Hits, HQArgs),
+            chttpd:send_json(Req, 200, Hdrs, ResultJson);
         {error, Reason} ->
             chttpd:send_error(Req, Reason);
         {timeout, _} ->
@@ -80,40 +81,12 @@ check_enabled() ->
             throw(payment_required)
     end.
 
-
-hits_to_json(Hits, HQArgs) ->
-    Bookmark = hastings_bookmark:update(HQArgs#h_args.bookmark, Hits),
-    BookmarkJson = hastings_bookmark:pack(Bookmark),
-    hits_to_json0(Hits, BookmarkJson).
-
-
-hits_to_json0(Hits, Bookmark) ->
-    Geoms = lists:map(fun(H) ->
-        Doc = case H#h_hit.doc of
-            undefined -> [];
-            Doc0 -> [{doc, Doc0}]
-        end,
-        Properties = {Doc},
-        Geom = case H#h_hit.geom of
-            undefined -> null;
-            Geom0 -> Geom0
-        end,
-        {[
-            {<<"id">>, H#h_hit.id},
-            {<<"geometry">>, Geom},
-            {<<"properties">>, Properties}
-        ]}
-    end, Hits),
-    {[
-        {<<"bookmark">>, Bookmark},
-        {<<"type">>, <<"FeatureCollection">>},
-        {<<"features">>, Geoms}
-    ]}.
-
-
 parse_search_req(Req) ->
     Params = hastings_httpd_util:parse_query(Req, search_parameters()),
-    set_record_fields(#h_args{geom = get_geometry(Params)}, Params).
+    Geom = get_geometry(Params),
+    Format = get_format(Req, Params),
+    FinalParams = [{geometry, Geom}, {format, Format} | Params],
+    set_new_record_fields(FinalParams).
 
 
 get_geometry(Params) ->
@@ -142,6 +115,24 @@ get_geometry(Name, Params, AllParams) ->
             {Name, list_to_tuple([element(2, P) || P <- Values])}
     end.
 
+get_format(Req, Params) ->
+    case lists:keyfind(format, 1, Params) of
+        false ->
+            case chttpd:header_value(Req, <<"Accept">>) of
+                undefined ->
+                    hastings_httpd_util:to_format(format, null);
+                Value -> 
+                    try hastings_httpd_util:to_format(format, Value) of 
+                        Value0 -> Value0
+                    catch {_, _} ->
+                        hastings_httpd_util:to_format(format, null)
+                    end
+            end;
+        Val -> Val
+    end.
+
+set_new_record_fields(Params) ->
+    set_record_fields(#h_args{}, Params).
 
 set_record_fields(HQArgs0, Params) ->
     HQArgs = lists:foldl(fun({Key, Val}, ArgAcc) ->
@@ -160,6 +151,8 @@ set_record_fields(HQArgs0, Params) ->
             include_docs ->     #h_args.include_docs;
             include_geoms ->    #h_args.include_geoms;
             bookmark ->         #h_args.bookmark;
+            geometry ->         #h_args.geom;
+            format ->           #h_args.format;
             extra ->            extra;
             _ ->                ignore
         end,
@@ -238,6 +231,7 @@ search_parameters() ->
         {<<"include_docs">>,    include_docs,   to_bool},
         {<<"include_geoms">>,   include_geoms,  to_bool},
         {<<"bookmark">>,        bookmark,       to_bookmark},
+        {<<"format">>,          format,         to_format},
 
         % Backwards compatibility
         {<<"lon">>,             x,              to_float},

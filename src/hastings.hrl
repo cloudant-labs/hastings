@@ -42,6 +42,8 @@
     include_geoms = true,
     bookmark = [],
 
+    format = hastings_format_view,
+
     extra = []
 }).
 
