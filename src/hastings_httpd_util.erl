@@ -120,6 +120,8 @@ to_format(_Name, null) ->
     hastings_format_view;
 to_format(_Name, <<"view">>) ->
     hastings_format_view;
+to_format(_Name, <<"legacy">>) ->
+    hastings_format_legacy;
 to_format(_Name, <<"geojson">>) ->
     hastings_format_geojson;
 to_format(_Name, <<"application/vnd.geo+json">>) ->
