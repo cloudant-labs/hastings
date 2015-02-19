@@ -110,8 +110,8 @@ load_docs(FDI, _, Acc) ->
                 if length(Geoms) == 0 -> ok; true ->
                     catch hastings_index:remove(Acc#acc.idx_pid, Id)
                 end,
-                Args = [Id, Acc#acc.name, {T, R}],
-                twig:log(warn, "Error updating ~p for ~p :: ~p", Args)
+                ErrArgs = [Id, Acc#acc.name, {T, R}],
+                twig:log(warn, "Error updating ~p for ~p :: ~w", ErrArgs)
             end
     end,
 
