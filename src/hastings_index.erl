@@ -132,7 +132,7 @@ init({Manager, DbName, Index, Generation}) ->
             St = #st{
                 manager = Manager,
                 index = NewIndex,
-                dbpid = Db#db.main_pid,
+                dbpid = Db#db2.main_pid,
                 generation = Generation
             },
             gen_server:enter_loop(?MODULE, [], St);
