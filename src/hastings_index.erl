@@ -44,7 +44,7 @@
 -record(st, {
     manager,
     index,
-    dbpid,
+    dbref,
     updater_pid,
     waiting_list = [],
     generation
@@ -317,7 +317,7 @@ reply_with_index(Index, WaitList) ->
     end, [], WaitList).
 
 
-has_clients(St) ->
+has_clients(_St) ->
     {monitors, Monitors} = process_info(self(), monitors),
     case Monitors of
         [] ->
