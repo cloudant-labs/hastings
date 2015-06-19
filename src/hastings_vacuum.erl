@@ -114,7 +114,6 @@ clean_db(DbName) ->
     {ok, JsonDDocs} = get_ddocs(DbName),
     DDocs = [couch_doc:from_json_obj(DD) || DD <- JsonDDocs],
     ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1, DDocs)),
-    twig:log(err, "SIGS: ~s ~p", [DbName, ActiveSigs]),
     cleanup(DbName, ActiveSigs).
 
 
