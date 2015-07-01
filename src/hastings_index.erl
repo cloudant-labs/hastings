@@ -45,7 +45,7 @@
 -record(st, {
     manager,
     index,
-    dbpid,
+    dbref,
     updater_pid,
     waiting_list = [],
     generation
@@ -140,7 +140,7 @@ init({Manager, DbName, Index, Generation}) ->
     case open_index(DbName, Index) of
         {ok, NewIndex} ->
             {ok, Db} = couch_db:open_int(DbName, []),
-            try
+            DbRef = try
                 couch_db:monitor(Db)
             after
                 couch_db:close(Db)
@@ -149,7 +149,7 @@ init({Manager, DbName, Index, Generation}) ->
             St = #st{
                 manager = Manager,
                 index = NewIndex,
-                dbpid = Db#db.main_pid,
+                dbref = DbRef,
                 generation = Generation
             },
             gen_server:enter_loop(?MODULE, [], St);
@@ -301,7 +301,7 @@ handle_info({'EXIT', Pid, Reason}, #st{index=#h_idx{pid={Pid}}} = St) ->
     couch_log:info(Fmt, [index_name(St#st.index), Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
     {stop, normal, St};
-handle_info({'DOWN', _, _, DbPid, Reason}, #st{dbpid=DbPid} = St) ->
+handle_info({'DOWN', Ref, _, DbPid, Reason}, #st{dbref=Ref} = St) ->
     Fmt = "~s ~s closing: Db pid ~p closing w/ reason ~w",
     couch_log:debug(Fmt, [?MODULE, index_name(St#st.index), DbPid, Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
@@ -351,15 +351,18 @@ reply_with_index(Index, WaitList) ->
     end, [], WaitList).
 
 
-has_clients(St) ->
-    DbPid = St#st.dbpid,
+has_clients(_St) ->
     {monitors, Monitors} = process_info(self(), monitors),
     case Monitors of
         [] ->
             false;
-        [{process, DbPid}] ->
+        [_] ->
+            % One monitor is discounted as us just
+            % monitoring the database. This is fine
+            % because we exit instantly if the db
+            % monitor ever fires.
             false;
-        _Else ->
+        [_ | _] ->
             true
     end.
 
