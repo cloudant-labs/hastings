@@ -264,17 +264,17 @@ handle_info({'EXIT', Pid, {updated, NewSeq}}, #st{updater_pid = Pid} = St) ->
     {noreply, NewSt};
 handle_info({'EXIT', Pid, Reason}, #st{updater_pid=Pid} = St) ->
     Fmt = "~s ~s closing: Updater pid ~p closing w/ reason ~w",
-    ?LOG_INFO(Fmt, [?MODULE, index_name(St#st.index), Pid, Reason]),
+    couch_log:info(Fmt, [?MODULE, index_name(St#st.index), Pid, Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
     {stop, normal, St};
 handle_info({'EXIT', Pid, Reason}, #st{index=#h_idx{pid={Pid}}} = St) ->
     Fmt = "Index for ~s closed with reason ~w",
-    ?LOG_INFO(Fmt, [index_name(St#st.index), Reason]),
+    couch_log:info(Fmt, [index_name(St#st.index), Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
     {stop, normal, St};
 handle_info({'DOWN', _, _, DbPid, Reason}, #st{dbpid=DbPid} = St) ->
     Fmt = "~s ~s closing: Db pid ~p closing w/ reason ~w",
-    ?LOG_DEBUG(Fmt, [?MODULE, index_name(St#st.index), DbPid, Reason]),
+    couch_log:debug(Fmt, [?MODULE, index_name(St#st.index), DbPid, Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
     {stop, normal, St};
 handle_info({'DOWN', _, _, _, _}, St) ->
