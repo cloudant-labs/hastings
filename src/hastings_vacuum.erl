@@ -186,7 +186,7 @@ cleanup(DbName, ActiveSigs) ->
             file:del_dir(IdxDir)
         catch E:T ->
             Stack = erlang:get_stacktrace(),
-            twig:log(error, "Failed to remove hastings index directory: ~p ~p",
+            couch_log:error("Failed to remove hastings index directory: ~p ~p",
                 [{E, T}, Stack])
         end
     end, DeadDirs).

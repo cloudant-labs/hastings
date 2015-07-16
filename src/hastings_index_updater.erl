@@ -111,7 +111,7 @@ load_docs(FDI, _, Acc) ->
                     catch hastings_index:remove(Acc#acc.idx_pid, Id)
                 end,
                 ErrArgs = [Id, Acc#acc.name, {T, R}],
-                twig:log(warn, "Error updating ~p for ~p :: ~w", ErrArgs)
+                couch_log:warning("Error updating ~p for ~p :: ~w", ErrArgs)
             end
     end,
 
