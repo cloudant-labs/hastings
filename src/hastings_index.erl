@@ -142,6 +142,7 @@ init({Manager, DbName, Index, Generation}) ->
 
 
 terminate(_Reason, St) ->
+    couch_stats:increment_counter([geo, crashes], 1),
     Index = St#st.index,
     catch exit(St#st.updater_pid, kill),
     ok = easton_index:close(Index#h_idx.pid).
