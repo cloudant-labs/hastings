@@ -30,10 +30,7 @@ pack(Bookmark) ->
 update(Bookmark, []) ->
     Bookmark;
 update(Bookmark, [Hit | Rest]) ->
-    NewBookmark = update(Bookmark, Rest),
     Key = Hit#h_hit.shard,
     Val = {Hit#h_hit.id, Hit#h_hit.dist},
-    lists:keystore(Key, 1, NewBookmark, {Key, Val}).
-
-
-
+    NewBookmark = lists:keystore(Key, 1, Bookmark, {Key, Val}),
+    update(NewBookmark, Rest).
