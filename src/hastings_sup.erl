@@ -31,7 +31,7 @@ init(_Args) ->
             1000,
             worker,
             [hastings_index_manager]
-        },
-        chttpd_handlers:provider(hastings, hastings_httpd_handlers)
+        }
     ],
-    {ok, {{one_for_one, 10, 1}, Children}}.
+    {ok, {{one_for_one, 10, 1},
+        couch_epi:register_service(hastings_epi, Children)}}.
