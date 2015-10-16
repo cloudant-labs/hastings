@@ -2,3 +2,5 @@ hastings
 ========
 
 Geospatial Search
+
+demo
