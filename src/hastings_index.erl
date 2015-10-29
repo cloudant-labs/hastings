@@ -143,7 +143,7 @@ init({Manager, DbName, Index, Generation}) ->
 
 terminate({'EXIT', _, normal}, St) ->
     terminate(close_index, St);
-terminate({'EXIT', _, _Reason}, #st{index=_Index} = St) ->
+terminate({'EXIT', _, _}, St) ->
     couch_stats:increment_counter([geo, crashes], 1),
     terminate(close_index, St);
 terminate(_, #st{index=Index, updater_pid=Updater_Pid}) ->
@@ -205,8 +205,7 @@ handle_call({search, HQArgs}, _From, St) ->
     catch throw:Error ->
         Error
     end,
-    {stop, {'EXIT', Idx#h_idx.pid, error}, Resp, St};
-    %{reply, Resp, St};
+    {reply, Resp, St};
 
 handle_call(info, _From, St) ->
     Idx = St#st.index,
