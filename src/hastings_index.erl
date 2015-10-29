@@ -141,27 +141,13 @@ init({Manager, DbName, Index, Generation}) ->
     end.
 
 
-terminate(Reason, St) ->
-    % Record errors that trigger easton_index crash
-    case Reason of
-        % hastings_index is gen_server and has been
-        % set to trap exit, then {'EXIT', Pid, Why}
-        % is regarded as geo crash only when Why is
-        % not equal to normal
-        {'EXIT', _Pid, normal} ->
-            ok;
-        {'EXIT', _Pid, _Why} ->
-            Fmt = "ERROR: ~s ~s closing by reason ~s",
-            couch_log:info(Fmt, [?MODULE, index_name(St#st.index), Reason]),
-            couch_stats:increment_counter([geo, crashes], 1);
-
-        % normal | shutdown | {shutdown,term()} are
-        % not regarded as geo crash
-        _Else ->
-            ok
-    end,
-    Index = St#st.index,
-    catch exit(St#st.updater_pid, kill),
+terminate({'EXIT', _, normal}, St) ->
+    terminate(close_index, St);
+terminate({'EXIT', _, _Reason}, #st{index=_Index} = St) ->
+    couch_stats:increment_counter([geo, crashes], 1),
+    terminate(close_index, St);
+terminate(_, #st{index=Index, updater_pid=Updater_Pid}) ->
+    catch exit(Updater_Pid, kill),
     ok = easton_index:close(Index#h_idx.pid).
 
 
@@ -219,7 +205,8 @@ handle_call({search, HQArgs}, _From, St) ->
     catch throw:Error ->
         Error
     end,
-    {reply, Resp, St};
+    {stop, {'EXIT', Idx#h_idx.pid, error}, Resp, St};
+    %{reply, Resp, St};
 
 handle_call(info, _From, St) ->
     Idx = St#st.index,
