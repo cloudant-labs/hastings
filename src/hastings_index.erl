@@ -140,9 +140,8 @@ init({Manager, DbName, Index, Generation}) ->
             proc_lib:init_ack(Error)
     end.
 
-
-terminate(_Reason, St) ->
-    couch_stats:increment_counter([geo, crashes], 1),
+terminate(Reason, St) ->
+    record_abnormal_termination(Reason),
     Index = St#st.index,
     catch exit(St#st.updater_pid, kill),
     ok = easton_index:close(Index#h_idx.pid).
@@ -472,3 +471,12 @@ get_timeout() ->
     catch _:_ ->
         60000
     end.
+
+record_abnormal_termination(normal) ->
+    ok;
+record_abnormal_termination(shutdown) ->
+    ok;
+record_abnormal_termination({shutdown, _}) ->
+    ok;
+record_abnormal_termination(_) ->
+    couch_stats:increment_counter([geo, crashes], 1).
