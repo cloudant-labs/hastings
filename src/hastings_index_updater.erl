@@ -93,17 +93,16 @@ load_docs(FDI, _, Acc) ->
             ok = hastings_index:remove(Acc#acc.idx_pid, Id);
         false ->
             {ok, Doc} = couch_db:open_doc(Acc#acc.db, DI, []),
-            couch_stats:increment_counter([geo, docs_processed], 1),
+            couch_stats:increment_counter([geo, index, doc_count], 1),
             Args = [<<"st_index_doc">>, couch_doc:to_json_obj(Doc, [])],
             [Geoms0] = ?CQS:proc_prompt(Acc#acc.proc, Args),
             Geoms = [G || [G, _Opts] <- Geoms0],
             try
                 case Geoms of
-                    [] -> 
+                    [] ->
                         ok = hastings_index:remove(Acc#acc.idx_pid, Id);
-                    _  -> 
-                        ok = hastings_index:update(Acc#acc.idx_pid, Id, Geoms),
-                        couch_stats:increment_counter([geo, emits], length(Geoms))
+                    _  ->
+                        ok = hastings_index:update(Acc#acc.idx_pid, Id, Geoms)
                 end
             catch T:R ->
                 % If we failed to update the index then we'll try and
