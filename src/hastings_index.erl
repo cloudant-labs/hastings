@@ -182,6 +182,7 @@ handle_call({await, RequestSeq}, From, St) ->
     end;
 
 handle_call({search, HQArgs}, _From, St) ->
+    Begin = os:timestamp(),
     Idx = St#st.index,
     Geom = HQArgs#h_args.geom,
     Opts = [
@@ -201,6 +202,9 @@ handle_call({search, HQArgs}, _From, St) ->
     catch throw:Error ->
         Error
     end,
+    Latency = timer:now_diff(os:timestamp(), Begin) div 1000,
+    couch_stats:update_histogram([geo, search, latency], Latency),
+    couch_stats:increment_counter([geo, search, count], 1),
     {reply, Resp, St};
 
 handle_call(info, _From, St) ->
@@ -214,13 +218,21 @@ handle_call({new_seq, Seq}, _From, St) ->
     {reply, ok, St};
 
 handle_call({update, Id, Geoms}, _From, St) ->
+    Begin = os:timestamp(),
     Idx = St#st.index,
     Resp = (catch easton_index:update(Idx#h_idx.pid, Id, Geoms)),
+    Latency = timer:now_diff(os:timestamp(), Begin) div 1000,
+    couch_stats:update_histogram([geo, index, update_latency], Latency),
+    couch_stats:increment_counter([geo, index, update_count], length(Geoms)),
     {reply, Resp, St};
 
 handle_call({remove, Id}, _From, St) ->
+    Begin = os:timestamp(),
     Idx = St#st.index,
     Resp = (catch easton_index:remove(Idx#h_idx.pid, Id)),
+    Latency = timer:now_diff(os:timestamp(), Begin) div 1000,
+    couch_stats:update_histogram([geo, index, remove_latency], Latency),
+    couch_stats:increment_counter([geo, index, remove_count], 1),
     {reply, Resp, St}.
 
 
@@ -286,6 +298,7 @@ code_change(_OldVsn, St, _Extra) ->
 
 
 open_index(DbName, Idx) ->
+    Begin = os:timestamp(),
     IdxDir = index_directory(DbName, Idx#h_idx.sig),
     Opts = [
         {type, Idx#h_idx.type},
@@ -294,6 +307,9 @@ open_index(DbName, Idx) ->
     ],
     case easton_index:open(IdxDir, Opts) of
         {ok, Pid} ->
+            Latency = timer:now_diff(os:timestamp(), Begin) div 1000,
+            couch_stats:update_histogram([geo, index, open_latency], Latency),
+            couch_stats:increment_counter([geo, index, open_count], 1),
             UpdateSeq = easton_index:get(Pid, update_seq, 0),
             {ok, Idx#h_idx{
                 pid = Pid,
@@ -472,6 +488,7 @@ get_timeout() ->
         60000
     end.
 
+
 record_abnormal_termination(normal) ->
     ok;
 record_abnormal_termination(shutdown) ->
@@ -479,4 +496,4 @@ record_abnormal_termination(shutdown) ->
 record_abnormal_termination({shutdown, _}) ->
     ok;
 record_abnormal_termination(_) ->
-    couch_stats:increment_counter([geo, crashes], 1).
+    couch_stats:increment_counter([geo, index, crash], 1).
