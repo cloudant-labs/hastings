@@ -442,16 +442,14 @@ get_index_srid(IdxProps) ->
             throw({invalid_index_srid, Else})
     end.
 
-
+% This could be the first chance we have to validate the SRID
+% specified in a design document, check it is an integer at least.
+% Checks elsewhere check for the actual validity of the SRID
+% when the index is built
 parse_srid(<<"urn:ogc:def:crs:EPSG::", Tail/binary>> = Val) ->
-    try
-        SRID = integer_to_list(binary_to_list(Tail)),
-        if SRID > 0 -> ok; true ->
-            throw(bad_srid)
-        end,
-        SRID
-    catch _:_ ->
-        throw({error, {invalid_srid, Val}})
+    case string:to_integer(binary_to_list(Tail)) of
+        {SRID, []} when SRID >= 0 -> SRID;
+        _ -> throw({error, {invalid_srid, Val}})
     end.
 
 
