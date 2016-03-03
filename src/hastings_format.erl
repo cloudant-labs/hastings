@@ -5,7 +5,7 @@
 -export([behaviour_info/1]).
 
 behaviour_info(callbacks) ->
-    [{hits_to_json,2}];
+    [{hits_to_json,3}];
 
 behaviour_info(_Other) ->
     undefined.

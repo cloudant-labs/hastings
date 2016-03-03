@@ -3,9 +3,9 @@
 
 -include("hastings.hrl").
 
--export([hits_to_json/2]).
+-export([hits_to_json/3]).
 
-hits_to_json(Hits, HQArgs) ->
+hits_to_json(_DbName, Hits, HQArgs) ->
     Bookmark = hastings_bookmark:update(HQArgs#h_args.bookmark, Hits),
     BookmarkJson = hastings_bookmark:pack(Bookmark),
     {[], hits_to_json0(Hits, BookmarkJson)}.
@@ -19,11 +19,11 @@ hits_to_json0(Hits, Bookmark) ->
         ExtraProps = case H#h_hit.doc of
             undefined -> [{<<"type">>, <<"Feature">>}, {<<"properties">>, []}];
             {DocList0} ->
-                Props0 = case lists:keyfind(<<"properties">>, 1, DocList0) of 
+                Props0 = case lists:keyfind(<<"properties">>, 1, DocList0) of
                     {_, Props} -> Props;
                 _ -> []
                 end,
-                Rev0 = case lists:keyfind(<<"_rev">>, 1, DocList0) of 
+                Rev0 = case lists:keyfind(<<"_rev">>, 1, DocList0) of
                     {_, Rev} -> Rev;
                     _ -> null
                 end,

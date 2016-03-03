@@ -37,7 +37,7 @@ handle_search_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
     case hastings_fabric_search:go(DbName, DDoc, IndexName, HQArgs) of
         {ok, Hits} ->
             Format = HQArgs#h_args.format,
-            {Hdrs, ResultJson} = Format:hits_to_json(Hits, HQArgs),
+            {Hdrs, ResultJson} = Format:hits_to_json(DbName, Hits, HQArgs),
             chttpd:send_json(Req, 200, Hdrs, ResultJson);
         {error, Reason} ->
             chttpd:send_error(Req, Reason);
@@ -121,8 +121,8 @@ get_format(Req, Params) ->
             case chttpd:header_value(Req, <<"Accept">>) of
                 undefined ->
                     hastings_httpd_util:to_format(format, null);
-                Value -> 
-                    try hastings_httpd_util:to_format(format, Value) of 
+                Value ->
+                    try hastings_httpd_util:to_format(format, Value) of
                         Value0 -> Value0
                     catch {_, _} ->
                         hastings_httpd_util:to_format(format, null)
