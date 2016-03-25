@@ -116,8 +116,12 @@ to_bookmark(Name, Value) ->
     invalid_value("bookmark", Name, Value).
 
 
+default_format() ->
+    list_to_atom(
+        "hastings_format_" ++ config:get("hastings", "default_format", "view")).
+
 to_format(_Name, null) ->
-    hastings_format_view;
+    default_format();
 to_format(_Name, <<"view">>) ->
     hastings_format_view;
 to_format(_Name, <<"legacy">>) ->
