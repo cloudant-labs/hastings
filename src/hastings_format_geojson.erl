@@ -3,9 +3,9 @@
 
 -include("hastings.hrl").
 
--export([hits_to_json/2]).
+-export([hits_to_json/3]).
 
-hits_to_json(Hits, HQArgs) ->
+hits_to_json(_DbName, Hits, HQArgs) ->
     Bookmark = hastings_bookmark:update(HQArgs#h_args.bookmark, Hits),
     BookmarkJson = hastings_bookmark:pack(Bookmark),
     {[], hits_to_json0(Hits, BookmarkJson)}.
