@@ -72,13 +72,14 @@ During a search request, before hastings_rpc calls hastings_index:search, hastin
 2. Function call  `hastings_index:design_doc_to_index(DDoc, IndexName)` returns a record representation of an index:
     ```
     #index{
-               ddoc_id=Id,
-               name=IndexName,
-               def=Def,
-               lang=Language,
-               type=Type,
-               dimensions=Dimensions,
-               srid=Srid}
+        ddoc_id=Id,
+        name=IndexName,
+        def=Def,
+        lang=Language,
+        type=Type,
+        dimensions=Dimensions,
+        srid=Srid
+        }
     ```
 `Sig` here is a hashed version of an index function and an analyzer represented in a Javascript function in a design document. `Sig` is used to check if an index description is changed, and the index needs to be reconstructed.
 
