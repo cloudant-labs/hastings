@@ -70,8 +70,8 @@ During a search request, before hastings_rpc calls hastings_index:search, hastin
 1. The last sequence number (signifying the number of the last change in the database) in calculated: `AwaitSeq=get_await_seq(Shard#shard.name, HQArgs`. For the stale queries (queries that don't need to reflect recent changes in the database), AwaitSeq will be 0, meaning that they don't need to initiate update of the index, before returning query results. The meaning of 0 is 'wait until index is at least at update_seq 0' which is true even for empty indexes.
 
 2. Function call  `hastings_index:design_doc_to_index(DDoc, IndexName)` returns a record representation of an index:
-```
-#index{
+    ```
+    #index{
                ddoc_id=Id,
                name=IndexName,
                def=Def,
@@ -79,7 +79,7 @@ During a search request, before hastings_rpc calls hastings_index:search, hastin
                type=Type,
                dimensions=Dimensions,
                srid=Srid}
-```
+    ```
 `Sig` here is a hashed version of an index function and an analyzer represented in a Javascript function in a design document. `Sig` is used to check if an index description is changed, and the index needs to be reconstructed.
 
 3. Function call `hastings_index_manager:get_index(DbName, Index)` will return Pid of the corresponding to this index hastings_index process. hastings_index_manager stores all the hastings_index processes for all indexes in the storage: `ets:new(?BY_SIG, [set, public, named_table])`. If the hastings_index process of the given index exists in the ets ?BY_SIG, it will be returned. If it doesn't exist, a new hastings_index process will be spawned.  For this, hastings_index_manager in the `handle_call({get_index,..)` will return `{noreply, State};` to not block gen_server, and will transfer handling creation of a new index process to the spawned process - `spawn_link(fun() -> new_index(DbName, Index) end)`, remembering the Pid of the caller in the ets ?BY_SIG.  `new_index` will create a new index process, sending `open_ok` message to the hastings_index_manager gen_server. `handle_call({open_ok,..) ` will retrieve the Pid - `From` of the original caller, and send a reply to this caller, a message containing a Pid of the created index process - NewPid. Calling `add_to_ets(NewPid, DbName, Sig)` will update two ets ?BY_SIG and ?BY_Pid.
