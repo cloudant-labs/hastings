@@ -25,7 +25,7 @@ Http requests have the following life cycle：
 
 2. hastings_httpd:
 passes and validates the request in functions: check_enabled & parse_search_req.
-depending on the type of the request, invokes one of the fabric_functions or hastings_vacuum: 
+Depending on the type of the request, invokes one of the fabric_functions or hastings_vacuum: 
 handle_search_req -> hastings_fabric_search
 handle_info_req -> hastings_fabric_info
 cleanup_req -> hastings_vacuum.
@@ -47,7 +47,7 @@ calls hastings_index:search(Pid, HQArgs) with a corresponding search request.
 synchronously calls easton_index:search.
 
 6. easton_index:
-calls cmd(Index, ?EASTON_COMMAND_SEARCH, Arg)  to run search in external application(written in C++) using port.
+calls cmd(Index, ?EASTON_COMMAND_SEARCH, Arg)  to run search in external application (easton_index, written in C++) using port. Errors thrown in the external application are passed back to the user and to log files.
 
 7. results are returned from external application
 
@@ -67,7 +67,7 @@ Indexing
 ### Indexing triggered by a search request
 During a search request, before hastings_rpc calls hastings_index:search, hastings_rpc first initiates the updating of Geospatial indexes. It does it in the following way:
 
-1. The last sequence number (signifying the number of the last change in the database) in calculated: `AwaitSeq=get_await_seq(Shard#shard.name, HQArgs`. For the stale queries (queries that don't need to reflect recent changes in the database), AwaitSeq will be 0, meaning that they don't need to initiate update of the index, before returning query results. The meaning of 0 is 'wait until index is at least at update_seq 0' which is true even for empty indexes.
+1. The last sequence number (signifying the number of the last change in the database) is calculated: `AwaitSeq=get_await_seq(Shard#shard.name, HQArgs`. For the stale queries (queries that don't need to reflect recent changes in the database), AwaitSeq will be 0, meaning that they don't need to initiate update of the index, before returning query results. The meaning of 0 is 'wait until index is at least at update_seq 0' which is true even for empty indexes.
 
 2. Function call  `hastings_index:design_doc_to_index(DDoc, IndexName)` returns a record representation of an index:
     ```
@@ -86,3 +86,17 @@ During a search request, before hastings_rpc calls hastings_index:search, hastin
 3. Function call `hastings_index_manager:get_index(DbName, Index)` will return Pid of the corresponding to this index hastings_index process. hastings_index_manager stores all the hastings_index processes for all indexes in the storage: `ets:new(?BY_SIG, [set, public, named_table])`. If the hastings_index process of the given index exists in the ets ?BY_SIG, it will be returned. If it doesn't exist, a new hastings_index process will be spawned.  For this, hastings_index_manager in the `handle_call({get_index,..)` will return `{noreply, State};` to not block gen_server, and will transfer handling creation of a new index process to the spawned process - `spawn_link(fun() -> new_index(DbName, Index) end)`, remembering the Pid of the caller in the ets ?BY_SIG.  `new_index` will create a new index process, sending `open_ok` message to the hastings_index_manager gen_server. `handle_call({open_ok,..) ` will retrieve the Pid - `From` of the original caller, and send a reply to this caller, a message containing a Pid of the created index process - NewPid. Calling `add_to_ets(NewPid, DbName, Sig)` will update two ets ?BY_SIG and ?BY_Pid.
 
 4. `hastings_index:await(Pid, AwaitSeq)` will initiate the update of the index, if the requested AwaitSeq is bigger than the current Seq stored in the index. It will do this by calling `hastings_index_updater:update(IndexPid, Index)`.  Hastings_index_updater will load all documents, modified since last seq stored in the hastings index, and for every document will call `hastings_index:remove` to delete documents in Geospatial Lucene Index, or `hastings_index:update` to update an index in Java GeoSpatial Index.
+
+Metrics
+--
+Hastings metrics are described in the following brief descriptions
+
+https://github.com/cloudant/hastings/blob/master/priv/stats_descriptions.cfg
+
+And in the following FB case
+
+https://cloudant.fogbugz.com/f/cases/55527/Add-histogram-of-time-to-index-document-to-geospatial-metrics#BugEvent.523768
+
+Logs
+--
+Hastings log messages are generated and find their way to splunk, they can be searched for simply with a "hastings" search term, or narrowed by cluster.
