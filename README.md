@@ -21,6 +21,9 @@ Hastings consists of the following files:
 Life of http request
 ------------
 Http requests have the following life cycle：
+
+![hastings.png](https://github.com/cloudant/hastings/tree/master/priv/hastings.png)
+
 1. A request from chttpd goes to hastings_httpd.
 
 2. hastings_httpd:
