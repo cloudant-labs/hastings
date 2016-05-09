@@ -1,0 +1,472 @@
+[
+  {
+    "_id": "560c5d320174a9e6d7bf3d37",
+    "type": "Feature",
+    "isActive": false,
+    "age": 21,
+    "distance": -2897968459.5846,
+    "registered": "2014-06-08T02:29:55 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            78.789608,
+            -163.789395
+          ],
+          [
+            -67.462027,
+            -57.994814
+          ],
+          [
+            -25.18751,
+            -178.304226
+          ],
+          [
+            60.262507,
+            -163.581267
+          ],
+          [
+            -40.287848,
+            -58.883899
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "quis",
+      "minim",
+      "officia",
+      "non",
+      "est",
+      "proident",
+      "anim"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  },
+  {
+    "_id": "560c5d325d092d4782664d31",
+    "type": "Feature",
+    "isActive": true,
+    "age": 28,
+    "distance": 1445080828.7085,
+    "registered": "2015-05-13T05:51:38 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -42.30942,
+            -160.815344
+          ],
+          [
+            50.012651,
+            36.464056
+          ],
+          [
+            -11.91777,
+            -121.633462
+          ],
+          [
+            -49.230449,
+            32.726715
+          ],
+          [
+            77.061316,
+            -147.153613
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "consequat",
+      "ut",
+      "cupidatat",
+      "tempor",
+      "quis",
+      "occaecat",
+      "est"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  },
+  {
+    "_id": "560c5d326914c1565cd540e4",
+    "type": "Feature",
+    "isActive": true,
+    "age": 36,
+    "distance": 6897340076.2858,
+    "registered": "2014-03-09T11:59:15 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            20.058829,
+            -107.636084
+          ],
+          [
+            -41.245572,
+            -49.060163
+          ],
+          [
+            42.966539,
+            86.083726
+          ],
+          [
+            8.198125,
+            -126.221845
+          ],
+          [
+            6.374295,
+            -68.347848
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "sit",
+      "culpa",
+      "est",
+      "duis",
+      "esse",
+      "tempor",
+      "magna"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  },
+  {
+    "_id": "560c5d321f1fdb033620196e",
+    "type": "Feature",
+    "isActive": true,
+    "age": 31,
+    "distance": -8113983002.6113,
+    "registered": "2014-08-20T05:22:01 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -30.32215,
+            115.013516
+          ],
+          [
+            -55.042607,
+            45.489029
+          ],
+          [
+            -38.025503,
+            -110.966111
+          ],
+          [
+            -6.877288,
+            -121.545814
+          ],
+          [
+            24.490988,
+            172.305039
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "nulla",
+      "excepteur",
+      "consequat",
+      "labore",
+      "incididunt",
+      "duis",
+      "mollit"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  },
+  {
+    "_id": "560c5d324e016157590e12ef",
+    "type": "Feature",
+    "isActive": true,
+    "age": 28,
+    "distance": -6484513170.3688,
+    "registered": "2014-04-24T03:49:37 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            63.471298,
+            73.405006
+          ],
+          [
+            -29.859059,
+            -132.169082
+          ],
+          [
+            4.795878,
+            -39.951411
+          ],
+          [
+            -49.237646,
+            -142.88771
+          ],
+          [
+            44.239237,
+            -64.356096
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "ut",
+      "incididunt",
+      "elit",
+      "aliquip",
+      "velit",
+      "laboris",
+      "id"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  },
+  {
+    "_id": "560c5d326035a6ca32326206",
+    "type": "Feature",
+    "isActive": false,
+    "age": 39,
+    "distance": -139701622.5243,
+    "registered": "2014-06-12T03:43:24 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -19.261374,
+            65.402353
+          ],
+          [
+            24.986228,
+            150.29533
+          ],
+          [
+            -27.253127,
+            -80.392595
+          ],
+          [
+            -0.248975,
+            -165.395778
+          ],
+          [
+            -18.823517,
+            -48.123213
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "qui",
+      "ut",
+      "Lorem",
+      "nostrud",
+      "aute",
+      "minim",
+      "officia"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  },
+  {
+    "_id": "560c5d32af478d3fb0ad7782",
+    "type": "Feature",
+    "isActive": false,
+    "age": 20,
+    "distance": -8465567132.5429,
+    "registered": "2014-07-05T04:39:23 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            45.553426,
+            136.152604
+          ],
+          [
+            82.154149,
+            -95.297983
+          ],
+          [
+            -40.280842,
+            -102.97253
+          ],
+          [
+            45.373664,
+            170.865469
+          ],
+          [
+            34.029653,
+            64.747303
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "non",
+      "labore",
+      "adipisicing",
+      "exercitation",
+      "est",
+      "magna",
+      "ut"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  },
+  {
+    "_id": "560c5d329efd138cc2782418",
+    "type": "Feature",
+    "isActive": true,
+    "age": 25,
+    "distance": -6959145454.9253,
+    "registered": "2014-07-31T11:40:06 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -10.23047,
+            -77.585997
+          ],
+          [
+            -70.399089,
+            -69.907791
+          ],
+          [
+            23.229517,
+            86.349616
+          ],
+          [
+            39.770081,
+            38.747715
+          ],
+          [
+            16.424615,
+            -50.16615
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "incididunt",
+      "labore",
+      "et",
+      "occaecat",
+      "ullamco",
+      "velit",
+      "enim"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  },
+  {
+    "_id": "560c5d329f29db701a2243b5",
+    "type": "Feature",
+    "isActive": true,
+    "age": 36,
+    "distance": -3992984802.0629,
+    "registered": "2014-07-25T07:36:52 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            45.795988,
+            -145.047707
+          ],
+          [
+            -0.838134,
+            122.841419
+          ],
+          [
+            -39.685365,
+            110.056268
+          ],
+          [
+            -85.447375,
+            -148.02016
+          ],
+          [
+            -7.737433,
+            89.150766
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "veniam",
+      "aliquip",
+      "adipisicing",
+      "velit",
+      "amet",
+      "reprehenderit",
+      "eiusmod"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  },
+  {
+    "_id": "560c5d326fa025a38c73fb66",
+    "type": "Feature",
+    "isActive": false,
+    "age": 33,
+    "distance": 3679757965.3607,
+    "registered": "2014-06-10T02:40:43 +07:00",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            30.81173,
+            -64.80439
+          ],
+          [
+            -24.033448,
+            17.356591
+          ],
+          [
+            -55.410992,
+            67.032136
+          ],
+          [
+            -86.778571,
+            44.894549
+          ],
+          [
+            -44.530426,
+            -21.028579
+          ]
+        ]
+      ]
+    },
+    "tags": [
+      "minim",
+      "officia",
+      "exercitation",
+      "ipsum",
+      "est",
+      "anim",
+      "duis"
+    ],
+    "properties": {
+      "prop1": "val"
+    }
+  }
+]
