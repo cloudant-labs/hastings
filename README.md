@@ -22,7 +22,7 @@ Life of http request
 ------------
 Http requests have the following life cycle：
 
-![hastings.png](https://github.com/cloudant/hastings/tree/master/priv/hastings.png)
+![hastings.png](https://github.com/cloudant/hastings/blob/master/priv/hastings.png)
 
 1. A request from chttpd goes to hastings_httpd.
 
