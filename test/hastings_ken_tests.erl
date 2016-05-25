@@ -20,7 +20,7 @@ teardown(DbName) ->
     ok = fabric:delete_db(DbName, [?ADMIN_CTX]).
 
 
-ken_test_() ->
+ken_test() ->
     {
         "Ken Tests",
         {
@@ -53,10 +53,10 @@ ken(DbName) ->
     {ok, _} = fabric:update_docs(DbName, Docs, [?ADMIN_CTX]),
 
     Pid = ets:first(hastings_by_pid),
-    ?_assertEqual(false, is_pid(Pid)),
+    ?assertEqual(false, is_pid(Pid)),
 
     {ok, _} = fabric:update_doc(DbName, DDoc, [?ADMIN_CTX]),
     timer:sleep(500),
     % After we upload design doc, there should a pid for the index.
     Pid2 = ets:first(hastings_by_pid),
-    ?_assertEqual(true, is_pid(Pid2)).
+    ?assertEqual(true, is_pid(Pid2)).
