@@ -13,14 +13,17 @@
 setup() ->
     DbName = ?tempdb(),
     ok = fabric:create_db(DbName, [?ADMIN_CTX]),
+    meck:new(hastings_index,[passthrough]),
+    meck:expect(hastings_index, design_doc_to_indexes, fun(_) -> [] end),
     DbName.
 
 
 teardown(DbName) ->
+    meck:unload(hastings_index),
     ok = fabric:delete_db(DbName, [?ADMIN_CTX]).
 
 
-ken_test() ->
+ken_test_() ->
     {
         "Ken Tests",
         {
@@ -39,24 +42,25 @@ ken_test() ->
 
 
 ken(DbName) ->
-    Fn = filename:join([?APPDIR, "test", "testdata", "geo_docs.json"]),
-    {ok, Bin} = file:read_file(Fn),
-    DocsArray = jiffy:decode(Bin),
-    Docs = [couch_doc:from_json_obj(JsonObj) || JsonObj <- DocsArray],
+    ?_test(begin
+        Fn = filename:join([?APPDIR, "test", "testdata", "geo_docs.json"]),
+        {ok, Bin} = file:read_file(Fn),
+        DocsArray = jiffy:decode(Bin),
+        Docs = [couch_doc:from_json_obj(JsonObj) || JsonObj <- DocsArray],
 
-    DesignFn = filename:join([?APPDIR, "test", "testdata",
-        "geo_design.json"]),
-    {ok, Bin2} = file:read_file(DesignFn),
-    JsonDDoc = jiffy:decode(Bin2),
-    DDoc = couch_doc:from_json_obj(JsonDDoc),
+        DesignFn = filename:join([?APPDIR, "test", "testdata",
+            "geo_design.json"]),
+        {ok, Bin2} = file:read_file(DesignFn),
+        JsonDDoc = jiffy:decode(Bin2),
+        DDoc = couch_doc:from_json_obj(JsonDDoc),
 
-    {ok, _} = fabric:update_docs(DbName, Docs, [?ADMIN_CTX]),
+        {ok, _} = fabric:update_docs(DbName, Docs, [?ADMIN_CTX]),
 
-    Pid = ets:first(hastings_by_pid),
-    ?assertEqual(false, is_pid(Pid)),
+        Pid = ets:first(hastings_by_pid),
+        ?assertEqual(false, is_pid(Pid)),
 
-    {ok, _} = fabric:update_doc(DbName, DDoc, [?ADMIN_CTX]),
-    timer:sleep(500),
-    % After we upload design doc, there should a pid for the index.
-    Pid2 = ets:first(hastings_by_pid),
-    ?assertEqual(true, is_pid(Pid2)).
+        {ok, _} = fabric:update_doc(DbName, DDoc, [?ADMIN_CTX]),
+        ok = meck:wait(hastings_index,design_doc_to_indexes, '_', 5000),
+        ?assertEqual(8, meck:num_calls(hastings_index, design_doc_to_indexes, ['_'])),
+        ok
+    end).
