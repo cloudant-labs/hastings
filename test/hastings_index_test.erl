@@ -13,4 +13,5 @@ design_doc_to_index_int_test() ->
     ),
     ?assertThrow({invalid_index, <<"Geospatial index 'p2' is invalid">>},
         hastings_index:design_doc_to_index_int(id, [<<"p2">>], <<"p2">>)
-    ).
+    ),
+    meck:unload(couch_util).

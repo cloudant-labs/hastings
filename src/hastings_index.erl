@@ -13,6 +13,7 @@
     stop/1,
 
     destroy/1,
+    design_doc_to_indexes/1,
     design_doc_to_index/2,
 
     add_monitor/2,
@@ -83,6 +84,22 @@ design_doc_to_index(#doc{id=Id, body={Fields}}, IndexName) ->
         design_doc_to_index_int(Id, Fields, IndexName)
     catch throw:Error ->
         Error
+    end.
+
+design_doc_to_indexes(#doc{body={Fields}}=Doc) ->
+    RawIndexes = couch_util:get_value(<<"st_indexes">>, Fields, {[]}),
+    case RawIndexes of
+        {IndexList} when is_list(IndexList) ->
+            {IndexNames, _} = lists:unzip(IndexList),
+            lists:flatmap(
+                fun(IndexName) ->
+                    case (catch design_doc_to_index(Doc, IndexName)) of
+                        {ok, #h_idx{}=Index} -> [Index];
+                        _ -> []
+                    end
+                end,
+                IndexNames);
+        _ -> []
     end.
 
 

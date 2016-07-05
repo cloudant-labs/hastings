@@ -1,0 +1,8 @@
+{
+    "_id": "_design/geodd",
+    "st_indexes": {
+        "geoidx": {
+            "index": "function(doc) {if (doc.geometry && doc.geometry.coordinates) {st_index(doc.geometry);}}"
+        }
+    }
+}
