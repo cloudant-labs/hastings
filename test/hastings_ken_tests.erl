@@ -59,6 +59,7 @@ ken(DbName) ->
         Pid = ets:first(hastings_by_pid),
         ?assertEqual(false, is_pid(Pid)),
 
+        ok = meck:reset(hastings_index),
         {ok, _} = fabric:update_doc(DbName, DDoc, [?ADMIN_CTX]),
         ok = meck:wait(hastings_index,design_doc_to_indexes, '_', 5000),
         ?assertEqual(8, meck:num_calls(hastings_index, design_doc_to_indexes, ['_'])),
