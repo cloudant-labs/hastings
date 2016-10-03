@@ -21,7 +21,7 @@ search(Shard, DDocInfo, IndexName, HQArgs0) ->
     AwaitSeq = get_await_seq(Shard#shard.name, HQArgs),
     Pid = get_index_pid(Shard#shard.name, DDoc, IndexName),
     case hastings_index:await(Pid, AwaitSeq) of
-        ok -> ok;
+        {ok, _} -> ok;
         Error -> reply(Error)
     end,
     case hastings_index:search(Pid, HQArgs) of
