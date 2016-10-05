@@ -185,7 +185,7 @@ handle_call({await, RequestSeq}, From, St) ->
     } = St,
     case {RequestSeq, Seq, UpPid} of
         _ when RequestSeq =< Seq ->
-            {reply, ok, St};
+            {reply, {ok, Seq}, St};
         _ when RequestSeq > Seq andalso UpPid == undefined ->
             Pid = spawn_link(hastings_index_updater, update, [self(), Index]),
             {noreply, St#st{
@@ -339,10 +339,11 @@ open_index(DbName, Idx) ->
 
 
 reply_with_index(Index, WaitList) ->
+    Seq = Index#h_idx.update_seq,
     lists:foldl(fun({From, ReqSeq} = W, Acc) ->
-        case ReqSeq =< Index#h_idx.update_seq of
+        case ReqSeq =< Seq of
             true ->
-                gen_server:reply(From, ok),
+                gen_server:reply(From, {ok, Seq}),
                 Acc;
             false ->
                 [W | Acc]
