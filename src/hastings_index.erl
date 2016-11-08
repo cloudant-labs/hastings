@@ -302,7 +302,7 @@ handle_info({'EXIT', Pid, Reason}, #st{updater_pid=Pid} = St) ->
     couch_log:info(Fmt, [?MODULE, index_name(St#st.index), Pid, Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
     {stop, normal, St};
-handle_info({'EXIT', Pid, Reason}, #st{index=#h_idx{pid={Pid}}} = St) ->
+handle_info({'EXIT', Pid, Reason}, #st{index=#h_idx{pid={_, Pid}}} = St) ->
     Fmt = "Index for ~s closed with reason ~w",
     couch_log:info(Fmt, [index_name(St#st.index), Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
