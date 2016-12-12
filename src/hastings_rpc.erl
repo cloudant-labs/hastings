@@ -22,7 +22,8 @@
     search/4,
     search/5,
     info/3,
-    info/4
+    info/4,
+    reply/1
 ]).
 
 
@@ -38,15 +39,15 @@ search(ShardName, ShardRange, DDocInfo, IndexName, HQArgs0) ->
     Pid = get_index_pid(ShardName, DDoc, IndexName),
     case hastings_index:await(Pid, AwaitSeq) of
         {ok, _} -> ok;
-        Error -> reply(Error)
+        Error -> hastings_rpc:reply(Error)
     end,
     case hastings_index:search(Pid, HQArgs) of
         {ok, Results0} ->
             MapFun = fun(Result) -> fmt_result(node(), ShardRange, Result) end,
             Results = lists:map(MapFun, Results0),
-            reply({ok, Results});
+            hastings_rpc:reply({ok, Results});
         Else ->
-            reply(Else)
+            hastings_rpc:reply(Else)
     end.
 
 
@@ -58,7 +59,7 @@ info(ShardName, _ShardRange, DDocInfo, IndexName) ->
     erlang:put(io_priority, {interactive, ShardName}),
     DDoc = get_ddoc(ShardName, DDocInfo),
     Pid = get_index_pid(ShardName, DDoc, IndexName),
-    reply(hastings_index:info(Pid)).
+    hastings_rpc:reply(hastings_index:info(Pid)).
 
 
 get_ddoc(ShardName, {DDocId, Rev}) ->
@@ -82,11 +83,11 @@ set_bookmark(ShardRange, #h_args{bookmark=Bookmark} = HQArgs) ->
 get_index_pid(DbName, DDoc, IndexName) ->
     Index = case hastings_index:design_doc_to_index(DDoc, IndexName) of
         {ok, Index0} -> Index0;
-        Error1 -> reply(Error1)
+        Error1 -> hastings_rpc:reply(Error1)
     end,
     case hastings_index_manager:get_index(DbName, Index) of
         {ok, Pid} -> Pid;
-        Error2 -> reply(Error2)
+        Error2 -> hastings_rpc:reply(Error2)
     end.
 
 

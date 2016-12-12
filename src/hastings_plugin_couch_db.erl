@@ -10,41 +10,20 @@
 % License for the specific language governing permissions and limitations under
 % the License.
 
--module(hastings_epi).
+-module(hastings_plugin_couch_db).
 
--behaviour(couch_epi_plugin).
+-include_lib("couch/include/couch_eunit.hrl").
+
 
 -export([
-    app/0,
-    providers/0,
-    services/0,
-    data_subscriptions/0,
-    data_providers/0,
-    processes/0,
-    notify/3
+    is_valid_purge_client/2,
+    on_compact/2
 ]).
 
-app() ->
-    hastings.
 
-providers() ->
-    [
-        {couch_db, hastings_plugin_couch_db},
-        {chttpd_handlers, hastings_httpd_handlers}
-    ].
+is_valid_purge_client(DbName, Props) ->
+    hastings_util:verify_index_exists(DbName, Props).
 
 
-services() ->
-    [].
-
-data_subscriptions() ->
-    [].
-
-data_providers() ->
-    [].
-
-processes() ->
-    [].
-
-notify(_Key, _Old, _New) ->
-    ok.
+on_compact(DbName, DDocs) ->
+    hastings_util:ensure_local_purge_docs(DbName, DDocs).

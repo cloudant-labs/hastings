@@ -249,7 +249,8 @@ delete_inactive_indexes(DbName, ActiveSigs) ->
     lists:foreach(fun(IdxDir) ->
         try
             hastings_index:destroy(IdxDir),
-            file:del_dir(IdxDir)
+            file:del_dir(IdxDir),
+            cleanup_local_purge_doc(DbName, IdxDir)
         catch E:T ->
             Stack = erlang:get_stacktrace(),
             couch_log:error("Failed to remove hastings index directory: ~p ~p",
@@ -289,3 +290,23 @@ rename_all_indexes(ShardDbName) ->
                 [{E, T}, Stack])
         end
     end, DirList).
+
+
+cleanup_local_purge_doc(DbName, IdxDir) ->
+    Sig = hastings_util:get_signature_from_idxdir(IdxDir),
+    case Sig of undefined -> ok; _ ->
+        DocId = hastings_util:get_local_purge_doc_id(Sig),
+        LocalShards = mem3:local_shards(DbName),
+        lists:foldl(fun(LS, _AccOuter) ->
+            ShardDbName = LS#shard.name,
+            {ok, ShardDb} = couch_db:open_int(ShardDbName, []),
+            case couch_db:open_doc(ShardDb, DocId, []) of
+                {ok, LocalPurgeDoc} ->
+                    couch_db:update_doc(ShardDb,
+                        LocalPurgeDoc#doc{deleted=true}, [?ADMIN_CTX]);
+                {not_found, _} ->
+                    ok
+            end,
+            couch_db:close(ShardDb)
+        end, [], LocalShards)
+    end.
