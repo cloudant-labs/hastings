@@ -23,8 +23,10 @@
     info/1,
 
     set_update_seq/2,
+    set_purge_seq/2,
     update/3,
-    remove/2
+    remove/2,
+    reset/1
 ]).
 
 -export([
@@ -50,6 +52,9 @@
     waiting_list = [],
     generation
 }).
+
+
+-define(TIMEOUT, 300000).
 
 
 start_link(Manager, DbName, Index, Generation) ->
@@ -124,6 +129,10 @@ info(Pid) ->
 
 set_update_seq(Pid, NewCurrSeq) ->
     gen_server:call(Pid, {new_seq, NewCurrSeq}, infinity).
+
+
+set_purge_seq(Pid, NewCurrSeq) ->
+    gen_server:call(Pid, {new_purge_seq, NewCurrSeq}, infinity).
 
 
 update(Pid, Id, Geoms) ->
@@ -234,6 +243,11 @@ handle_call({new_seq, Seq}, _From, St) ->
     ok = easton_index:put(Idx#h_idx.pid, update_seq, Seq),
     {reply, ok, St};
 
+handle_call({new_purge_seq, Seq}, _From, St) ->
+    Idx = St#st.index,
+    ok = easton_index:put(Idx#h_idx.pid, purge_seq, Seq),
+    {reply, ok, St};
+
 handle_call({update, Id, Geoms}, _From, St) ->
     Begin = os:timestamp(),
     Idx = St#st.index,
@@ -275,22 +289,14 @@ handle_info(run_checks, St) ->
 handle_info({'EXIT', Pid, {updated, NewSeq}}, #st{updater_pid = Pid} = St) ->
     Index0 = St#st.index,
     Index = Index0#h_idx{update_seq = NewSeq},
-    NewSt = case reply_with_index(Index, St#st.waiting_list) of
-        [] ->
-            St#st{
-                index = Index,
-                updater_pid = undefined,
-                waiting_list = []
-            };
-        StillWaiting ->
-            Pid = spawn_link(hastings_index_updater, update, [self(), Index]),
-            St#st{
-                index = Index,
-                updater_pid = Pid,
-                waiting_list = StillWaiting
-            }
-    end,
+    NewSt = reply_or_update(St, Index),
     {noreply, NewSt};
+
+handle_info({'EXIT', Pid, reset}, #st{updater_pid = Pid} = St) ->
+    NewSt1 = hastings_index:reset(St),
+    NewSt2 = reply_or_update(NewSt1, NewSt1#st.index),
+    {noreply, NewSt2};
+
 handle_info({'EXIT', Pid, Reason}, #st{updater_pid=Pid} = St) ->
     Fmt = "~s ~s closing: Updater pid ~p closing w/ reason ~w",
     couch_log:info(Fmt, [?MODULE, index_name(St#st.index), Pid, Reason]),
@@ -328,6 +334,14 @@ open_index(DbName, Idx) ->
             couch_stats:update_histogram([geo, index, open_latency], Latency),
             couch_stats:increment_counter([geo, index, open_count], 1),
             UpdateSeq = easton_index:get(Pid, update_seq, 0),
+            DbOldestPurgeSeq = hastings_util:get_oldest_purge_seq(DbName),
+            IdxPurgeSeq = hastings_util:get_idx_purge_seq(DbName, Pid),
+            if (IdxPurgeSeq + 1) >= DbOldestPurgeSeq -> ok; true ->
+                hastings_util:close_index(Idx#h_idx.pid),
+                ok = destroy_index(IdxDir),
+                IdxReset = Idx#h_idx{update_seq = 0},
+                open_index(DbName, IdxReset)
+            end,
             {ok, Idx#h_idx{
                 pid = Pid,
                 dbname = DbName,
@@ -335,6 +349,32 @@ open_index(DbName, Idx) ->
             }};
         Error ->
             Error
+    end.
+
+
+reset(St) ->
+    Idx = St#st.index,
+    DbName = Idx#h_idx.dbname,
+    hastings_util:close_index(Idx#h_idx.pid),
+    IdxDir = index_directory(DbName, Idx#h_idx.sig),
+    ok = destroy_index(IdxDir),
+    case open_index(DbName, Idx) of
+        {ok, NewIndex} ->
+            St#st{index = NewIndex};
+        Error ->
+            Error
+    end.
+
+
+destroy_index(IdxDir) ->
+    {_, Ref} = spawn_monitor(fun() ->
+        exit(easton_index:destroy(IdxDir))
+    end),
+    receive
+        {'DOWN', Ref, _, _, Reason} ->
+            Reason
+    after ?TIMEOUT ->
+        throw({timeout, destroy_index})
     end.
 
 
@@ -349,6 +389,24 @@ reply_with_index(Index, WaitList) ->
                 [W | Acc]
         end
     end, [], WaitList).
+
+
+reply_or_update(St, NewIndex) ->
+    case reply_with_index(St#st.index, St#st.waiting_list) of
+        [] ->
+            St#st{
+                index = NewIndex,
+                updater_pid = undefined,
+                waiting_list = []
+            };
+        StillWaiting ->
+            Pid = spawn_link(hastings_index_updater, update, [self(), NewIndex]),
+            St#st{
+                index = NewIndex,
+                updater_pid = Pid,
+                waiting_list = StillWaiting
+            }
+    end.
 
 
 has_clients(St) ->

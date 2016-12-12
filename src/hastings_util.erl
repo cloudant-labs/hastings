@@ -4,8 +4,14 @@
 
 
 -export([
-    get_json_docs/2
+    get_json_docs/2,
+    get_oldest_purge_seq/1,
+    get_idx_purge_seq/2,
+    close_index/1
 ]).
+
+
+-define(TIMEOUT, 300000).
 
 
 get_json_docs(DbName, DocIds) ->
@@ -32,3 +38,31 @@ callback(complete, Acc) ->
     {ok, lists:reverse(Acc)};
 callback(timeout, _Acc) ->
     {error, timeout}.
+
+
+get_oldest_purge_seq(DbName) ->
+    {ok, Db} = couch_db:open_int(DbName, []),
+    try
+        {ok, DbOldestPSeq} = couch_db:get_oldest_purge_seq(Db),
+        DbOldestPSeq
+    after
+        couch_db:close(Db)
+    end.
+
+
+get_idx_purge_seq(DbName, Pid) ->
+    DbOldestPurgeSeq = get_oldest_purge_seq(DbName),
+    if DbOldestPurgeSeq > 0 ->
+        easton_index:get(Pid, purge_seq, DbOldestPurgeSeq - 1);
+    true ->
+        easton_index:get(Pid, purge_seq, 0)
+    end.
+
+
+close_index(Pid) ->
+    easton_index:close(Pid),
+    receive
+        {'EXIT', _, _} -> ok
+    after ?TIMEOUT ->
+        throw({timeout, reset_index})
+    end.
