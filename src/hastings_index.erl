@@ -15,6 +15,7 @@
     destroy/1,
     design_doc_to_indexes/1,
     design_doc_to_index/2,
+    verify_index_exists/1,
 
     add_monitor/2,
 
@@ -23,8 +24,10 @@
     info/1,
 
     set_update_seq/2,
+    set_purge_seq/2,
     update/3,
-    remove/2
+    remove/2,
+    reset/1
 ]).
 
 -export([
@@ -50,6 +53,9 @@
     waiting_list = [],
     generation
 }).
+
+
+-define(TIMEOUT, 300000).
 
 
 start_link(Manager, DbName, Index, Generation) ->
@@ -126,6 +132,10 @@ set_update_seq(Pid, NewCurrSeq) ->
     gen_server:call(Pid, {new_seq, NewCurrSeq}, infinity).
 
 
+set_purge_seq(Pid, NewCurrSeq) ->
+    gen_server:call(Pid, {new_purge_seq, NewCurrSeq}, infinity).
+
+
 update(Pid, Id, Geoms) ->
     gen_server:call(Pid, {update, Id, Geoms}, infinity).
 
@@ -141,6 +151,7 @@ init({Manager, DbName, Index, Generation}) ->
         {ok, NewIndex} ->
             {ok, Db} = couch_db:open_int(DbName, []),
             try
+                hastings_util:maybe_create_local_purge_doc(Db, NewIndex),
                 couch_db:monitor(Db)
             after
                 couch_db:close(Db)
@@ -234,6 +245,11 @@ handle_call({new_seq, Seq}, _From, St) ->
     ok = easton_index:put(Idx#h_idx.pid, update_seq, Seq),
     {reply, ok, St};
 
+handle_call({new_purge_seq, Seq}, _From, St) ->
+    Idx = St#st.index,
+    ok = easton_index:put(Idx#h_idx.pid, purge_seq, Seq),
+    {reply, ok, St};
+
 handle_call({update, Id, Geoms}, _From, St) ->
     Begin = os:timestamp(),
     Idx = St#st.index,
@@ -275,22 +291,14 @@ handle_info(run_checks, St) ->
 handle_info({'EXIT', Pid, {updated, NewSeq}}, #st{updater_pid = Pid} = St) ->
     Index0 = St#st.index,
     Index = Index0#h_idx{update_seq = NewSeq},
-    NewSt = case reply_with_index(Index, St#st.waiting_list) of
-        [] ->
-            St#st{
-                index = Index,
-                updater_pid = undefined,
-                waiting_list = []
-            };
-        StillWaiting ->
-            Pid = spawn_link(hastings_index_updater, update, [self(), Index]),
-            St#st{
-                index = Index,
-                updater_pid = Pid,
-                waiting_list = StillWaiting
-            }
-    end,
+    NewSt = reply_or_update(St, Index),
     {noreply, NewSt};
+
+handle_info({'EXIT', Pid, reset}, #st{updater_pid = Pid} = St) ->
+    NewSt1 = hastings_index:reset(St),
+    NewSt2 = reply_or_update(NewSt1, NewSt1#st.index),
+    {noreply, NewSt2};
+
 handle_info({'EXIT', Pid, Reason}, #st{updater_pid=Pid} = St) ->
     Fmt = "~s ~s closing: Updater pid ~p closing w/ reason ~w",
     couch_log:info(Fmt, [?MODULE, index_name(St#st.index), Pid, Reason]),
@@ -338,6 +346,32 @@ open_index(DbName, Idx) ->
     end.
 
 
+reset(St) ->
+    Idx = St#st.index,
+    DbName = Idx#h_idx.dbname,
+    hastings_util:close_index(Idx#h_idx.pid),
+    IdxDir = index_directory(DbName, Idx#h_idx.sig),
+    ok = destroy_index(IdxDir),
+    case open_index(DbName, Idx) of
+        {ok, NewIndex} ->
+            St#st{index = NewIndex};
+        Error ->
+            Error
+    end.
+
+
+destroy_index(IdxDir) ->
+    {_, Ref} = spawn_monitor(fun() ->
+        exit(easton_index:destroy(IdxDir))
+    end),
+    receive
+        {'DOWN', Ref, _, _, Reason} ->
+            Reason
+    after ?TIMEOUT ->
+        throw({timeout, destroy_index})
+    end.
+
+
 reply_with_index(Index, WaitList) ->
     Seq = Index#h_idx.update_seq,
     lists:foldl(fun({From, ReqSeq} = W, Acc) ->
@@ -349,6 +383,24 @@ reply_with_index(Index, WaitList) ->
                 [W | Acc]
         end
     end, [], WaitList).
+
+
+reply_or_update(St, NewIndex) ->
+    case reply_with_index(St#st.index, St#st.waiting_list) of
+        [] ->
+            St#st{
+                index = NewIndex,
+                updater_pid = undefined,
+                waiting_list = []
+            };
+        StillWaiting ->
+            Pid = spawn_link(hastings_index_updater, update, [self(), NewIndex]),
+            St#st{
+                index = NewIndex,
+                updater_pid = Pid,
+                waiting_list = StillWaiting
+            }
+    end.
 
 
 has_clients(St) ->
@@ -408,6 +460,40 @@ design_doc_to_index_int(Id, Fields, IndexName) ->
             Error = io_lib:format("Geospatial index '~s' is invalid",
                 [IndexName]),
             throw({invalid_index, iolist_to_binary(Error)})
+    end.
+
+
+verify_index_exists(Options) ->
+    ShardDbName = hastings_util:get_value_from_options(<<"dbname">>, Options),
+    DDocId = hastings_util:get_value_from_options(<<"ddoc_id">>, Options),
+    IndexName = hastings_util:get_value_from_options(<<"indexname">>, Options),
+    Sig = hastings_util:get_value_from_options(<<"signature">>, Options),
+    case couch_db:open_int(ShardDbName, []) of
+        {ok, Db} ->
+            try
+                DbName = mem3:dbname(couch_db:name(Db)),
+                case ddoc_cache:open(DbName, DDocId) of
+                    {ok, DDoc} ->
+                        {ok, Idx} = hastings_index:design_doc_to_index(
+                            DDoc,
+                            IndexName
+                        ),
+                        Idx#h_idx.sig == Sig;
+                    _Else ->
+                        false
+                end
+            catch E:T ->
+                Stack = erlang:get_stacktrace(),
+                couch_log:error(
+                    "Error occurs when verifying existence of ~s/~s :: ~p ~p",
+                    [ShardDbName, DDocId, {E, T}, Stack]
+                ),
+                false
+            after
+                catch couch_db:close(Db)
+            end;
+        _Else ->
+            false
     end.
 
 

@@ -29,15 +29,41 @@
 
 update(IndexPid, Index) ->
     #h_idx{
+        pid = Pid,
         dbname = DbName,
         ddoc_id = DDocId,
         name = IndexName,
         lang = Language,
-        update_seq = UpSeq
+        update_seq = UpSeq,
+        sig = Sig
     } = Index,
     erlang:put(io_priority, {view_update, DbName, IndexName}),
     {ok, Db} = couch_db:open_int(DbName, []),
     try
+        IdxPurgeSeq = hastings_util:get_idx_purge_seq(DbName, Pid),
+        FoldFun = fun({PurgeSeq, _UUId, Id, _Revs}, _Acc) ->
+            hastings_index:remove(IndexPid, Id),
+            hastings_index:set_purge_seq(IndexPid, PurgeSeq),
+            {ok, PurgeSeq}
+        end,
+        {ok, PSeq} = couch_db:fold_purged_docs(
+            Db,
+            IdxPurgeSeq,
+            FoldFun,
+            nil,
+            []
+        ),
+        if PSeq == nil -> ok; true ->
+            hastings_util:update_local_purge_doc(
+                Db,
+                DbName,
+                DDocId,
+                IndexName,
+                Sig,
+                PSeq
+            )
+        end,
+
         %% compute on all docs modified since we last computed.
         TotalChanges = couch_db:count_changes_since(Db, UpSeq),
 
