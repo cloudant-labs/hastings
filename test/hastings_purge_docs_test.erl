@@ -50,7 +50,9 @@ hastings_purge_test_() ->
                     fun test_purge_single/1,
                     fun test_purge_multiple/1,
                     fun test_purge_multiple2/1,
-                    fun test_purge_reset/1
+                    fun test_purge_local_purge_doc/1,
+                    fun test_purge_verify_index/1,
+                    fun test_purge_remove_local_purge_doc/1
                 ]
             }
         }
@@ -147,56 +149,141 @@ test_purge_multiple2(DbName) ->
         ok
     end).
 
-test_purge_reset(DbName) ->
+test_purge_local_purge_doc(DbName) ->
     ?_test(begin
         Docs1 = hastings_test_util:make_docs(10),
         {ok, _} = fabric:update_docs(DbName, Docs1, [?ADMIN_CTX]),
         {ok, _} = fabric:update_doc(DbName, hastings_test_util:ddoc(geo), [?ADMIN_CTX]),
+
+        {ok, Hits} = run_hastings_search(DbName),
+        ?assertEqual(10, lists:flatlength(Hits)),
 
         % open couch database using couch_db:open_init/2 API
         % in order to use couch_db:purge_docs/2;
         % this will be replaced with fabric:purge_docs/3 later
         Suffix = lists:sublist(binary_to_list(DbName), 15, 10),
         DBFullName = "shards/00000000-ffffffff/" ++ binary_to_list(DbName) ++ "." ++ Suffix,
-        {ok, Db} = couch_db:open_int(list_to_binary(DBFullName), [?ADMIN_CTX]),
-        couch_db:set_purged_docs_limit(Db, 3),
+        {ok, Db} = couch_db:open_int(list_to_binary(DBFullName), []),
 
-        {ok, Hits} = run_hastings_search(DbName),
-        ?assertEqual(10, lists:flatlength(Hits)),
-
-        ok = meck:reset(hastings_index),
         DocIds1 = [
             <<"point1">>,
             <<"point2">>
         ],
         purge_docs(DbName, Db, DocIds1),
+
         {ok, Hits1} = run_hastings_search(DbName),
         ?assertEqual(8, lists:flatlength(Hits1)),
-        ?assertEqual(false, meck:called(hastings_index, reset, '_')),
 
-        ok = meck:reset(hastings_index),
+        {ok, DDoc} = couch_db:open_doc(Db, <<"_design/geodd">>, []),
+        {ok, Idx} = hastings_index:design_doc_to_index(DDoc, <<"geoidx">>),
+
+        {ok, LocalPurgeDoc1} = fabric:open_doc(DbName, hastings_util:get_local_purge_doc_id(Idx#h_idx.sig), []),
+        {Props1} = couch_doc:to_json_obj(LocalPurgeDoc1, []),
+        Rev1 = couch_util:get_value(<<"_rev">>, Props1),
+        ?assertEqual(<<"0-1">>, Rev1),
+
         DocIds2 = [
             <<"point3">>,
-            <<"point9">>,
+            <<"point4">>
+        ],
+        purge_docs(DbName, Db, DocIds2),
+
+        {ok, Hits2} = run_hastings_search(DbName),
+        ?assertEqual(6, lists:flatlength(Hits2)),
+
+        {ok, LocalPurgeDoc2} = fabric:open_doc(DbName, hastings_util:get_local_purge_doc_id(Idx#h_idx.sig), []),
+        {Props2} = couch_doc:to_json_obj(LocalPurgeDoc2, []),
+        Rev2 = couch_util:get_value(<<"_rev">>, Props2),
+        ?assertEqual(<<"0-2">>, Rev2),
+
+        DocIds3 = [
             <<"point5">>,
             <<"point6">>
         ],
-        purge_docs(DbName, Db, DocIds2),
-        {ok, Hits2}  = run_hastings_search(DbName),
-        ?assertEqual(4, lists:flatlength(Hits2)),
-        ?assert(meck:called(hastings_index, reset, '_')),
-
-        ok = meck:reset(hastings_index),
-        DocIds3 = [
-            <<"point7">>,
-            <<"point8">>
-        ],
         purge_docs(DbName, Db, DocIds3),
-        {ok, Hits3}= run_hastings_search(DbName),
-        ?assertEqual(2, lists:flatlength(Hits3)),
-        ?assertEqual(false, meck:called(hastings_index, reset, '_')),
+
+        {ok, Hits3} = run_hastings_search(DbName),
+        ?assertEqual(4, lists:flatlength(Hits3)),
+
+        {ok, LocalPurgeDoc3} = fabric:open_doc(DbName, hastings_util:get_local_purge_doc_id(Idx#h_idx.sig), []),
+        {Prop3} = couch_doc:to_json_obj(LocalPurgeDoc3, []),
+        Rev3 = couch_util:get_value(<<"_rev">>, Prop3),
+        ?assertEqual(<<"0-3">>, Rev3),
 
         ok
+    end).
+
+test_purge_verify_index(DbName) ->
+    ?_test(begin
+        Docs1 = hastings_test_util:make_docs(5),
+        {ok, _} = fabric:update_docs(DbName, Docs1, [?ADMIN_CTX]),
+        {ok, _} = fabric:update_doc(DbName, hastings_test_util:ddoc(geo), [?ADMIN_CTX]),
+
+        {ok, Hits} = run_hastings_search(DbName),
+        ?assertEqual(5, lists:flatlength(Hits)),
+
+        % open couch database using couch_db:open_init/2 API
+        % in order to use couch_db:purge_docs/2;
+        % this will be replaced with fabric:purge_docs/3 later
+        Suffix = lists:sublist(binary_to_list(DbName), 15, 10),
+        DBFullName = "shards/00000000-ffffffff/" ++ binary_to_list(DbName) ++ "." ++ Suffix,
+        {ok, Db} = couch_db:open_int(list_to_binary(DBFullName), []),
+
+        DocIds1 = [
+            <<"point1">>,
+            <<"point2">>
+        ],
+        purge_docs(DbName, Db, DocIds1),
+
+        {ok, Hits1} = run_hastings_search(DbName),
+        ?assertEqual(3, lists:flatlength(Hits1)),
+
+        {ok, DDoc} = couch_db:open_doc(Db, <<"_design/geodd">>, []),
+        {ok, Idx} = hastings_index:design_doc_to_index(DDoc, <<"geoidx">>),
+        {ok, LocPurgeDoc} = fabric:open_doc(DbName, hastings_util:get_local_purge_doc_id(Idx#h_idx.sig), []),
+        {Props} = couch_doc:to_json_obj(LocPurgeDoc,[]),
+        {Options} = couch_util:get_value(<<"verify_options">>, Props),
+
+        ?assertEqual(true, hastings_index:verify_index_exists(Options)),
+
+        ok
+    end).
+
+test_purge_remove_local_purge_doc(DbName) ->
+  ?_test(begin
+      Docs1 = hastings_test_util:make_docs(5),
+      {ok, _} = fabric:update_docs(DbName, Docs1, [?ADMIN_CTX]),
+      {ok, _} = fabric:update_doc(DbName, hastings_test_util:ddoc(geo), [?ADMIN_CTX]),
+
+      {ok, Hits} = run_hastings_search(DbName),
+      ?assertEqual(5, lists:flatlength(Hits)),
+
+      % open couch database using couch_db:open_init/2 API
+      % in order to use couch_db:purge_docs/2;
+      % this will be replaced with fabric:purge_docs/3 later
+      Suffix = lists:sublist(binary_to_list(DbName), 15, 10),
+      DBFullName = "shards/00000000-ffffffff/" ++ binary_to_list(DbName) ++ "." ++ Suffix,
+      {ok, Db} = couch_db:open_int(list_to_binary(DBFullName), []),
+
+      DocIds1 = [
+          <<"point1">>,
+          <<"point2">>
+      ],
+      purge_docs(DbName, Db, DocIds1),
+
+      {ok, Hits1} = run_hastings_search(DbName),
+      ?assertEqual(3, lists:flatlength(Hits1)),
+
+      {ok, DDoc} = couch_db:open_doc(Db, <<"_design/geodd">>, []),
+      {ok, Idx} = hastings_index:design_doc_to_index(DDoc, <<"geoidx">>),
+      {ok, LocalPurgeDoc} = fabric:open_doc(DbName, hastings_util:get_local_purge_doc_id(Idx#h_idx.sig), []),
+
+      {ok, _} = fabric:update_doc(DbName, LocalPurgeDoc#doc{deleted=true}, [?ADMIN_CTX]),
+
+      Result = fabric:open_doc(DbName, hastings_util:get_local_purge_doc_id(Idx#h_idx.sig), []),
+      ?assertEqual({not_found,missing}, Result),
+
+      ok
     end).
 
 

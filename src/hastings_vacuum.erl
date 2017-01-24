@@ -183,7 +183,15 @@ cleanup(DbName, ActiveSigs) ->
     lists:foreach(fun(IdxDir) ->
         try
             hastings_index:destroy(IdxDir),
-            file:del_dir(IdxDir)
+            file:del_dir(IdxDir),
+            IdxDirList = filename:split(IdxDir),
+            [Sig] = lists:nthtail(length(IdxDirList)-1, IdxDirList),
+            case fabric:open_doc(DbName, hastings_util:get_local_purge_doc_id(Sig), []) of
+                {ok, LocalPurgeDoc} ->
+                    fabric:update_doc(DbName, LocalPurgeDoc#doc{deleted=true}, [?ADMIN_CTX]);
+                {not_found, _} ->
+                    ok
+            end
         catch E:T ->
             Stack = erlang:get_stacktrace(),
             couch_log:error("Failed to remove hastings index directory: ~p ~p",
