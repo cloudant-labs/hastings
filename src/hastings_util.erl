@@ -80,7 +80,7 @@ create_or_update_local_purge_doc(Db, DbName, DDocId, IndexName, Sig, PSeq) ->
         {not_found, _Reason} ->
             DocContent = get_local_purge_doc_content(DbName, DDocId, IndexName, Sig, PSeq, hastings_util:utc_string());
         {ok, LocalPurgeDoc} ->
-            Body = get_local_purge_doc_body(DbName, DDocId, IndexName, PSeq, hastings_util:utc_string()),
+            Body = get_local_purge_doc_body(DbName, DDocId, IndexName, Sig, PSeq, hastings_util:utc_string()),
             DocContent = LocalPurgeDoc#doc{body=Body}
     end,
     couch_db:update_doc(Db, DocContent, []).
@@ -96,13 +96,14 @@ get_local_purge_doc_content(DbName, DDocId, IndexName, Sig, PurgeSeq, LastUpdate
         {<<"verify_options">>, {[
             {<<"dbname">>, DbName},
             {<<"ddoc_id">>, DDocId},
-            {<<"indexname">>, IndexName}
+            {<<"indexname">>, IndexName},
+            {<<"signature">>, Sig}
         ]}},
         {<<"type">>, <<"geo">>}
     ]}).
 
 
-get_local_purge_doc_body(DbName, DDocId, IndexName, PurgeSeq, LastUpdateTs) ->
+get_local_purge_doc_body(DbName, DDocId, IndexName, Sig, PurgeSeq, LastUpdateTs) ->
     {[
         {<<"purge_seq">>, PurgeSeq},
         {<<"timestamp_utc">>, list_to_binary(LastUpdateTs)},
@@ -111,7 +112,8 @@ get_local_purge_doc_body(DbName, DDocId, IndexName, PurgeSeq, LastUpdateTs) ->
         {<<"verify_options">>, {[
             {<<"dbname">>, DbName},
             {<<"ddoc_id">>, DDocId},
-            {<<"indexname">>, IndexName}
+            {<<"indexname">>, IndexName},
+            {<<"signature">>, Sig}
         ]}},
         {<<"type">>, <<"geo">>}
     ]}.
@@ -127,12 +129,11 @@ get_value_from_options(Key, Options) ->
 
 
 utc_string() ->
-    {MegaSecs, Secs, MicroSecs} = erlang:now(),
     {{Year, Month, Day}, {Hour, Minute, Second}} =
-        calendar:now_to_universal_time({MegaSecs, Secs, MicroSecs}),
+        calendar:now_to_universal_time(os:timestamp()),
     lists:flatten(
-        io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~6..0wZ",
-            [Year, Month, Day, Hour, Minute, Second, MicroSecs])).
+        io_lib:format("~.4.0w-~.2.0w-~.2.0wT~.2.0w:~.2.0w:~.2.0wZ",
+            [Year, Month, Day, Hour, Minute, Second])).
 
 
 get_local_purge_doc_id(Sig) ->
