@@ -474,13 +474,12 @@ verify_index_exists(Options) ->
     DbName = hastings_util:get_value_from_options(<<"dbname">>, Options),
     DDocId = hastings_util:get_value_from_options(<<"ddoc_id">>, Options),
     IndexName = hastings_util:get_value_from_options(<<"indexname">>, Options),
-    GeoDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
+    Sig = hastings_util:get_value_from_options(<<"signature">>, Options),
     {ok, Db} = couch_db:open_int(DbName, []),
     {ok, DDoc} = couch_db:open_doc(Db, DDocId, []),
     {ok, Idx} = hastings_index:design_doc_to_index(DDoc, IndexName),
     couch_db:close(Db),
-    LibPath = filename:join([GeoDir, DbName, Idx#h_idx.sig]),
-    filelib:is_dir(LibPath).
+    Idx#h_idx.sig == Sig.
 
 
 set_index_sig(Idx) ->
