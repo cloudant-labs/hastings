@@ -159,7 +159,7 @@ init({Manager, DbName, Index, Generation}) ->
             St = #st{
                 manager = Manager,
                 index = NewIndex,
-                dbpid = Db#db.main_pid,
+                dbpid = couch_db:get_pid(Db),
                 generation = Generation
             },
             gen_server:enter_loop(?MODULE, [], St);
