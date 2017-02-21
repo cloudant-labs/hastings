@@ -151,6 +151,7 @@ init({Manager, DbName, Index, Generation}) ->
         {ok, NewIndex} ->
             {ok, Db} = couch_db:open_int(DbName, []),
             try
+                hastings_util:may_create_local_purge_doc(Db, NewIndex),
                 couch_db:monitor(Db)
             after
                 couch_db:close(Db)
@@ -335,14 +336,6 @@ open_index(DbName, Idx) ->
             couch_stats:update_histogram([geo, index, open_latency], Latency),
             couch_stats:increment_counter([geo, index, open_count], 1),
             UpdateSeq = easton_index:get(Pid, update_seq, 0),
-            DbOldestPurgeSeq = hastings_util:get_oldest_purge_seq(DbName),
-            IdxPurgeSeq = hastings_util:get_idx_purge_seq(DbName, Pid),
-            if (IdxPurgeSeq + 1) >= DbOldestPurgeSeq -> ok; true ->
-                hastings_util:close_index(Idx#h_idx.pid),
-                ok = destroy_index(IdxDir),
-                IdxReset = Idx#h_idx{update_seq = 0},
-                open_index(DbName, IdxReset)
-            end,
             {ok, Idx#h_idx{
                 pid = Pid,
                 dbname = DbName,

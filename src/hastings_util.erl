@@ -10,12 +10,14 @@
     close_index/1,
     get_local_purge_doc_id/1,
     get_value_from_options/2,
-    create_or_update_local_purge_doc/6,
+    update_local_purge_doc/6,
+    may_create_local_purge_doc/2,
     utc_string/0
 ]).
 
 
 -include_lib("couch/include/couch_db.hrl").
+-include("hastings.hrl").
 
 
 -define(TIMEOUT, 300000).
@@ -75,22 +77,29 @@ close_index(Pid) ->
     end.
 
 
-create_or_update_local_purge_doc(Db, DbName, DDocId, IndexName, Sig, PSeq) ->
+may_create_local_purge_doc(Db, Index) ->
+    Sig = Index#h_idx.sig,
     case couch_db:open_doc(Db, get_local_purge_doc_id(Sig), []) of
         {not_found, _Reason} ->
-            DocContent = get_local_purge_doc_content(DbName, DDocId, IndexName, Sig, PSeq, hastings_util:utc_string());
-        {ok, LocalPurgeDoc} ->
-            Body = get_local_purge_doc_body(DbName, DDocId, IndexName, Sig, PSeq, hastings_util:utc_string()),
-            DocContent = LocalPurgeDoc#doc{body=Body}
-    end,
-    couch_db:update_doc(Db, DocContent, []).
+            PurgeSeq = easton_index:get(Index#h_idx.pid, purge_seq, 0),
+            update_local_purge_doc(
+                Db,
+                Index#h_idx.dbname,
+                Index#h_idx.ddoc_id,
+                Index#h_idx.name,
+                Sig,
+                PurgeSeq
+            );
+        {ok, _LocalPurgeDoc} ->
+            ok
+    end.
 
 
-get_local_purge_doc_content(DbName, DDocId, IndexName, Sig, PurgeSeq, LastUpdateTs) ->
-    couch_doc:from_json_obj({[
+update_local_purge_doc(Db, DbName, DDocId, IndexName, Sig, PurgeSeq) ->
+    Doc = couch_doc:from_json_obj({[
         {<<"_id">>, list_to_binary(?LOCAL_DOC_PREFIX ++ "purge-geo-" ++ Sig)},
         {<<"purge_seq">>, PurgeSeq},
-        {<<"timestamp_utc">>, list_to_binary(LastUpdateTs)},
+        {<<"timestamp_utc">>, list_to_binary(hastings_util:utc_string())},
         {<<"verify_module">>, <<"hastings_index">>},
         {<<"verify_function">>, <<"verify_index_exists">>},
         {<<"verify_options">>, {[
@@ -100,23 +109,8 @@ get_local_purge_doc_content(DbName, DDocId, IndexName, Sig, PurgeSeq, LastUpdate
             {<<"signature">>, Sig}
         ]}},
         {<<"type">>, <<"geo">>}
-    ]}).
-
-
-get_local_purge_doc_body(DbName, DDocId, IndexName, Sig, PurgeSeq, LastUpdateTs) ->
-    {[
-        {<<"purge_seq">>, PurgeSeq},
-        {<<"timestamp_utc">>, list_to_binary(LastUpdateTs)},
-        {<<"verify_module">>, <<"hastings_index">>},
-        {<<"verify_function">>, <<"verify_index_exists">>},
-        {<<"verify_options">>, {[
-            {<<"dbname">>, DbName},
-            {<<"ddoc_id">>, DDocId},
-            {<<"indexname">>, IndexName},
-            {<<"signature">>, Sig}
-        ]}},
-        {<<"type">>, <<"geo">>}
-    ]}.
+    ]}),
+    couch_db:update_doc(Db, Doc, []).
 
 
 get_value_from_options(Key, Options) ->

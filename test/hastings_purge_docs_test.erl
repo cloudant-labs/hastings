@@ -194,7 +194,7 @@ test_purge_local_purge_doc(DbName) ->
         {ok, LocalPurgeDoc2} = fabric:open_doc(DbName, hastings_util:get_local_purge_doc_id(Idx#h_idx.sig), []),
         {Props2} = couch_doc:to_json_obj(LocalPurgeDoc2, []),
         Rev2 = couch_util:get_value(<<"_rev">>, Props2),
-        ?assertEqual(<<"0-2">>, Rev2),
+        ?assertEqual(<<"0-1">>, Rev2),
 
         DocIds3 = [
             <<"point5">>,
@@ -208,7 +208,7 @@ test_purge_local_purge_doc(DbName) ->
         {ok, LocalPurgeDoc3} = fabric:open_doc(DbName, hastings_util:get_local_purge_doc_id(Idx#h_idx.sig), []),
         {Prop3} = couch_doc:to_json_obj(LocalPurgeDoc3, []),
         Rev3 = couch_util:get_value(<<"_rev">>, Prop3),
-        ?assertEqual(<<"0-3">>, Rev3),
+        ?assertEqual(<<"0-1">>, Rev3),
 
         ok
     end).

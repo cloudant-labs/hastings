@@ -48,7 +48,7 @@ update(IndexPid, Index) ->
         end,
         {ok, PSeq} = couch_db:fold_purged_docs(Db, IdxPurgeSeq, FoldFun, nil, []),
         if PSeq == nil -> ok; true ->
-            hastings_util:create_or_update_local_purge_doc(Db, DbName, DDocId, IndexName, Sig, PSeq)
+            hastings_util:update_local_purge_doc(Db, DbName, DDocId, IndexName, Sig, PSeq)
         end,
 
         %% compute on all docs modified since we last computed.
