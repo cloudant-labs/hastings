@@ -468,12 +468,23 @@ verify_index_exists(Options) ->
     DDocId = hastings_util:get_value_from_options(<<"ddoc_id">>, Options),
     IndexName = hastings_util:get_value_from_options(<<"indexname">>, Options),
     Sig = hastings_util:get_value_from_options(<<"signature">>, Options),
-    {ok, Db} = couch_db:open_int(DbName, []),
-    {ok, DDoc} = couch_db:open_doc(Db, DDocId, []),
-    {ok, Idx} = hastings_index:design_doc_to_index(DDoc, IndexName),
-    couch_db:close(Db),
-    Idx#h_idx.sig == Sig.
-
+    case couch_db:open_int(DbName, []) of
+        {ok, Db} ->
+            case couch_db:open_doc(Db, DDocId, []) of
+                {ok, DDoc} ->
+                    case (catch hastings_index:design_doc_to_index(DDoc, IndexName)) of
+                        {ok, Idx} ->
+                            couch_db:close(Db),
+                            Idx#h_idx.sig == Sig;
+                        _Else ->
+                            false
+                    end;
+                 _Else ->
+                    false
+             end;
+        _Else ->
+            false
+    end.
 
 set_index_sig(Idx) ->
     SigTerm = {
