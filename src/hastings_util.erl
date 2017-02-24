@@ -11,7 +11,7 @@
     get_local_purge_doc_id/1,
     get_value_from_options/2,
     update_local_purge_doc/6,
-    may_create_local_purge_doc/2,
+    maybe_create_local_purge_doc/2,
     utc_string/0
 ]).
 
@@ -77,7 +77,7 @@ close_index(Pid) ->
     end.
 
 
-may_create_local_purge_doc(Db, Index) ->
+maybe_create_local_purge_doc(Db, Index) ->
     Sig = Index#h_idx.sig,
     case couch_db:open_doc(Db, get_local_purge_doc_id(Sig), []) of
         {not_found, _Reason} ->

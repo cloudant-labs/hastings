@@ -41,7 +41,7 @@ update(IndexPid, Index) ->
     {ok, Db} = couch_db:open_int(DbName, []),
     try
         IdxPurgeSeq = hastings_util:get_idx_purge_seq(DbName, Pid),
-        FoldFun = fun(PurgeSeq, {Id, _Revs}, _Acc) ->
+        FoldFun = fun({PurgeSeq, _UUId, Id, _Revs}, _Acc) ->
             hastings_index:remove(IndexPid, Id),
             hastings_index:set_purge_seq(IndexPid, PurgeSeq),
             {ok, PurgeSeq}
