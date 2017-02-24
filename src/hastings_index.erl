@@ -151,7 +151,7 @@ init({Manager, DbName, Index, Generation}) ->
         {ok, NewIndex} ->
             {ok, Db} = couch_db:open_int(DbName, []),
             try
-                hastings_util:may_create_local_purge_doc(Db, NewIndex),
+                hastings_util:maybe_create_local_purge_doc(Db, NewIndex),
                 couch_db:monitor(Db)
             after
                 couch_db:close(Db)
