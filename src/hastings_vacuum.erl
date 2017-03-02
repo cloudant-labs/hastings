@@ -184,25 +184,35 @@ cleanup(DbName, ActiveSigs) ->
         try
             hastings_index:destroy(IdxDir),
             file:del_dir(IdxDir),
-            IdxDirList = filename:split(IdxDir),
-            [Sig] = lists:nthtail(length(IdxDirList)-1, IdxDirList),
-            DocId = hastings_util:get_local_purge_doc_id(Sig),
-            LocalShards = mem3:local_shards(DbName),
-            lists:foldl(fun(LS, _AccOuter) ->
-                ShardDbName = LS#shard.name,
-                {ok, ShardDb} = couch_db:open_int(ShardDbName, []),
-                case couch_db:open_doc(ShardDb, DocId, []) of
-                    {ok, LocalPurgeDoc} ->
-                        couch_db:update_doc(ShardDb,
-                            LocalPurgeDoc#doc{deleted=true}, [?ADMIN_CTX]);
-                    {not_found, _} ->
-                        ok
-                end,
-                couch_db:close(ShardDb)
-            end, [], LocalShards)
+            cleanup_local_purge_doc(DbName, IdxDir)
         catch E:T ->
             Stack = erlang:get_stacktrace(),
             couch_log:error("Failed to remove hastings index directory: ~p ~p",
                 [{E, T}, Stack])
         end
     end, DeadDirs).
+
+
+cleanup_local_purge_doc(DbName, IdxDir) ->
+    Sig = hastings_util:get_signature_from_idxdir(IdxDir),
+    if length(Sig) < 16 -> ok; true ->
+        case re:run(Sig,"^[a-fA-F0-9]+$",[{capture, none}]) of
+            match ->
+                DocId = hastings_util:get_local_purge_doc_id(Sig),
+                LocalShards = mem3:local_shards(DbName),
+                lists:foldl(fun(LS, _AccOuter) ->
+                    ShardDbName = LS#shard.name,
+                    {ok, ShardDb} = couch_db:open_int(ShardDbName, []),
+                    case couch_db:open_doc(ShardDb, DocId, []) of
+                        {ok, LocalPurgeDoc} ->
+                            couch_db:update_doc(ShardDb,
+                                LocalPurgeDoc#doc{deleted=true}, [?ADMIN_CTX]);
+                        {not_found, _} ->
+                            ok
+                    end,
+                    couch_db:close(ShardDb)
+                            end, [], LocalShards);
+            _ ->
+                ok
+        end
+    end.

@@ -464,27 +464,33 @@ design_doc_to_index_int(Id, Fields, IndexName) ->
 
 
 verify_index_exists(Options) ->
-    DbName = hastings_util:get_value_from_options(<<"dbname">>, Options),
+    ShardDbName = hastings_util:get_value_from_options(<<"dbname">>, Options),
     DDocId = hastings_util:get_value_from_options(<<"ddoc_id">>, Options),
     IndexName = hastings_util:get_value_from_options(<<"indexname">>, Options),
     Sig = hastings_util:get_value_from_options(<<"signature">>, Options),
-    case couch_db:open_int(DbName, []) of
+    case couch_db:open_int(ShardDbName, []) of
         {ok, Db} ->
-            case couch_db:open_doc(Db, DDocId, []) of
-                {ok, DDoc} ->
-                    case (catch hastings_index:design_doc_to_index(DDoc, IndexName)) of
-                        {ok, Idx} ->
-                            couch_db:close(Db),
-                            Idx#h_idx.sig == Sig;
-                        _Else ->
-                            false
-                    end;
-                 _Else ->
-                    false
-             end;
+            try
+                DbName = mem3:dbname(Db#db.name),
+                case ddoc_cache:open(DbName, DDocId) of
+                    {ok, DDoc} ->
+                        {ok, Idx} = hastings_index:design_doc_to_index(DDoc, IndexName),
+                        Idx#h_idx.sig == Sig;
+                    _Else ->
+                        false
+                end
+            catch E:T ->
+                Stack = erlang:get_stacktrace(),
+                couch_log:error("Error occurs when verifying existence of index: ~p ~p",
+                    [{E, T}, Stack]),
+                false
+            after
+                catch couch_db:close(Db)
+            end;
         _Else ->
             false
     end.
+
 
 set_index_sig(Idx) ->
     SigTerm = {
