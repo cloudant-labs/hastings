@@ -12,7 +12,7 @@
     get_value_from_options/2,
     update_local_purge_doc/6,
     maybe_create_local_purge_doc/2,
-    utc_string/0
+    get_signature_from_idxdir/1
 ]).
 
 
@@ -81,7 +81,8 @@ maybe_create_local_purge_doc(Db, Index) ->
     Sig = Index#h_idx.sig,
     case couch_db:open_doc(Db, get_local_purge_doc_id(Sig), []) of
         {not_found, _Reason} ->
-            PurgeSeq = easton_index:get(Index#h_idx.pid, purge_seq, 0),
+            DefaultPurgeSeq = couch_db:get_purge_seq(Db),
+            PurgeSeq = easton_index:get(Index#h_idx.pid, purge_seq, DefaultPurgeSeq),
             update_local_purge_doc(
                 Db,
                 Index#h_idx.dbname,
@@ -99,7 +100,7 @@ update_local_purge_doc(Db, DbName, DDocId, IndexName, Sig, PurgeSeq) ->
     Doc = couch_doc:from_json_obj({[
         {<<"_id">>, list_to_binary(?LOCAL_DOC_PREFIX ++ "purge-geo-" ++ Sig)},
         {<<"purge_seq">>, PurgeSeq},
-        {<<"timestamp_utc">>, list_to_binary(hastings_util:utc_string())},
+        {<<"timestamp_utc">>, list_to_binary(couch_util:utc_string())},
         {<<"verify_module">>, <<"hastings_index">>},
         {<<"verify_function">>, <<"verify_index_exists">>},
         {<<"verify_options">>, {[
@@ -122,13 +123,11 @@ get_value_from_options(Key, Options) ->
     end.
 
 
-utc_string() ->
-    {{Year, Month, Day}, {Hour, Minute, Second}} =
-        calendar:now_to_universal_time(os:timestamp()),
-    lists:flatten(
-        io_lib:format("~.4.0w-~.2.0w-~.2.0wT~.2.0w:~.2.0w:~.2.0wZ",
-            [Year, Month, Day, Hour, Minute, Second])).
-
-
 get_local_purge_doc_id(Sig) ->
     list_to_binary(?LOCAL_DOC_PREFIX ++ "purge-geo-" ++ Sig).
+
+
+get_signature_from_idxdir(IdxDir) ->
+    IdxDirList = filename:split(IdxDir),
+    [Sig] = lists:nthtail(length(IdxDirList)-1, IdxDirList),
+    Sig.
