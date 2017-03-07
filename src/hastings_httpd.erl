@@ -60,7 +60,7 @@ handle_info_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
                 {geo_index, {IndexInfoList}}
             ]});
         {error, Reason} ->
-            chttpd:send_error(Req, Reason)
+            handle_error(Req, Reason)
     end;
 handle_info_req_int(Req, _Db, _DDoc) ->
     chttpd:send_method_not_allowed(Req, "GET").
@@ -244,3 +244,22 @@ search_parameters() ->
         {<<"srs">>,             req_srid,       to_string},
         {<<"responseSrs">>,     resp_srid,      to_string}
     ].
+
+
+handle_error(Req, {invalid_index, ErrorInfo}) ->
+    chttpd:send_error(Req, 404, invalid_index_object, ErrorInfo);
+handle_error(Req, {invalid_index_type, ErrorInfo}) ->
+    chttpd:send_error(Req, 404, invalid_index_object, ErrorInfo);
+handle_error(Req, {invalid_index_dimensions, ErrorInfo}) ->
+    chttpd:send_error(Req, 404, invalid_index_object, ErrorInfo);
+handle_error(Req, {invalid_index_object, _ErrorInfo}) ->
+    Resp = <<"st_indexes must be object or null">>,
+    chttpd:send_error(Req, 404, invalid_index_object, Resp);
+handle_error(Req, {invalid_index_definition, ErrorInfo}) ->
+    chttpd:send_error(Req, 404, invalid_index_object, ErrorInfo);
+handle_error(Req, {invalid_index_language, ErrorInfo}) ->
+    chttpd:send_error(Req, 404, invalid_index_object, ErrorInfo);
+handle_error(Req, {invalid_index_srid, ErrorInfo}) ->
+    chttpd:send_error(Req, 404, invalid_index_srid, ErrorInfo);
+handle_error(Req, Reason) ->
+    chttpd:send_error(Req, Reason).
