@@ -14,7 +14,10 @@
 
 
 -export([
-    get_json_docs/2
+    get_json_docs/2,
+    rename_dir/3,
+    get_existing_index_dirs/2,
+    get_recovery_index_dir/3
 ]).
 
 
@@ -42,3 +45,36 @@ callback(complete, Acc) ->
     {ok, lists:reverse(Acc)};
 callback(timeout, _Acc) ->
     {error, timeout}.
+
+
+rename_dir(RootDir, Original, DbName) ->
+    RecoveryIndexDir = get_recovery_index_dir(RootDir, Original, DbName),
+    Now = calendar:local_time(),
+    filelib:ensure_dir(RecoveryIndexDir),
+    case file:rename(Original, RecoveryIndexDir) of
+        ok -> file:change_time(RecoveryIndexDir, Now);
+        Else -> Else
+    end.
+
+
+get_existing_index_dirs(BaseDir, DbName) ->
+    % Find the existing index directories on disk
+    DbNamePattern = <<DbName/binary, ".*">>,
+    Pattern0 = filename:join([BaseDir, "shards", "*", DbNamePattern, "*"]),
+    Pattern = binary_to_list(iolist_to_binary(Pattern0)),
+    DirListStrs = filelib:wildcard(Pattern),
+    [iolist_to_binary(DL) || DL <- DirListStrs].
+
+
+get_recovery_index_dir(RootDir, Original, DbName) ->
+    PrefLen = binary:longest_common_prefix(
+        [list_to_binary(RootDir), Original]
+    ),
+    <<_Pref:PrefLen/binary, Other/binary>> = Original,
+    % skip directory separator, such as "/" or "\"
+    GeoIndexAbsPath = case Other of
+        <<"/", Rest/binary>> -> Rest;
+        <<"\\", Rest/binary>> -> Rest;
+        _ -> Other
+    end,
+    filename:join([RootDir, ".recovery", GeoIndexAbsPath]).
