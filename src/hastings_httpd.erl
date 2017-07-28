@@ -20,7 +20,8 @@
 -export([
     handle_search_req/3,
     handle_info_req/3,
-    handle_cleanup_req/2
+    handle_cleanup_req/2,
+    handle_disk_size_req/3
 ]).
 
 
@@ -31,12 +32,17 @@ handle_search_req(Req, Db, DDoc) ->
 
 handle_info_req(Req, Db, DDoc) ->
     check_enabled(),
-    handle_info_req_int(Req, Db, DDoc).
+    handle_info_req_int(Req, Db, DDoc, info).
 
 
 handle_cleanup_req(Req, Db) ->
     check_enabled(),
     handle_cleanup_req_int(Req, Db).
+
+
+handle_disk_size_req(Req, Db, DDoc) ->
+    check_enabled(),
+    handle_info_req_int(Req, Db, DDoc, disk_size).
 
 
 handle_search_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
@@ -58,12 +64,12 @@ handle_search_req_int(Req, _Db, _DDoc) ->
     chttpd:send_method_not_allowed(Req, "GET").
 
 
-handle_info_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
-        when length(PP) == 5 ->
+handle_info_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc,
+        StartFun) when length(PP) == 5 ->
     DbName = couch_db:name(Db),
     DDocId = DDoc#doc.id,
     IndexName = lists:last(PP),
-    case hastings_fabric_info:go(DbName, DDoc, IndexName) of
+    case hastings_fabric_info:go(DbName, DDoc, IndexName, StartFun) of
         {ok, IndexInfoList} ->
             chttpd:send_json(Req, 200, {[
                 {name,  <<DDocId/binary,"/",IndexName/binary>>},
@@ -72,7 +78,7 @@ handle_info_req_int(#httpd{method='GET', path_parts=PP}=Req, Db, DDoc)
         {error, Reason} ->
             handle_error(Req, Reason)
     end;
-handle_info_req_int(Req, _Db, _DDoc) ->
+handle_info_req_int(Req, _Db, _DDoc, _StartFun) ->
     chttpd:send_method_not_allowed(Req, "GET").
 
 

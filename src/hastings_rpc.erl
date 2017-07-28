@@ -20,7 +20,8 @@
 
 -export([
     search/4,
-    info/3
+    info/3,
+    disk_size/3
 ]).
 
 
@@ -48,6 +49,17 @@ info(Shard, DDocInfo, IndexName) ->
     DDoc = get_ddoc(Shard, DDocInfo),
     Pid = get_index_pid(Shard#shard.name, DDoc, IndexName),
     reply(hastings_index:info(Pid)).
+
+
+disk_size(Shard, DDocInfo, IndexName) ->
+    erlang:put(io_priority, {interactive, Shard#shard.name}),
+    DDoc = get_ddoc(Shard, DDocInfo),
+    Index = case hastings_index:design_doc_to_index(DDoc, IndexName) of
+        {ok, Index0} -> Index0;
+        Error1 -> reply(Error1)
+    end,
+    DiskSize = hastings_index:disk_size(Shard#shard.name, Index#h_idx.sig),
+    reply(DiskSize).
 
 
 get_ddoc(Shard, {DDocId, Rev}) ->

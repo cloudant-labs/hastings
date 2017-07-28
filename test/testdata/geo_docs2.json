@@ -1,0 +1,46 @@
+[
+  {
+    "_id": "79f14b64c57461584b152123e392f263",
+    "geometry": {
+      "coordinates": [
+        -71.12087954,
+        42.35182135
+      ],
+      "type": "Point"
+    },
+    "type": "Feature"
+  },
+  {
+    "_id": "79f14b64c57461584b152123e392ed9d",
+    "geometry": {
+      "coordinates": [
+        -71.15209161,
+        42.35993593
+      ],
+      "type": "Point"
+    },
+    "type": "Feature"
+  },
+  {
+    "_id": "79f14b64c57461584b152123e392e828",
+    "geometry": {
+      "coordinates": [
+        -71.05998657,
+        42.36164815
+      ],
+      "type": "Point"
+    },
+    "type": "Feature"
+  },
+  {
+    "_id": "79f14b64c57461584b152123e392da64",
+    "geometry": {
+      "coordinates": [
+        -71.09674435,
+        42.34874916
+      ],
+      "type": "Point"
+    },
+    "type": "Feature"
+  }
+]
