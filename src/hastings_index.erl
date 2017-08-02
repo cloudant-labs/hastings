@@ -428,7 +428,7 @@ set_index_sig(Idx) ->
         Idx#h_idx.dimensions,
         Idx#h_idx.srid
     },
-    Sig = ?l2b(couch_util:to_hex(couch_crypto:hash(md5,term_to_binary(SigTerm)))),
+    Sig = ?l2b(couch_util:to_hex(crypto:hash(md5,term_to_binary(SigTerm)))),
     Idx#h_idx{sig = Sig}.
 
 
