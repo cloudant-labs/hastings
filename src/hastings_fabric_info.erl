@@ -18,15 +18,14 @@
 -include_lib("couch/include/couch_db.hrl").
 
 
--export([go/3]).
+-export([go/4]).
 
 
-go(DbName, DDocId, IndexName) when is_binary(DDocId) ->
+go(DbName, DDocId, IndexName, StartFun) when is_binary(DDocId) ->
     {ok, DDoc} = fabric:open_doc(DbName, <<"_design/", DDocId/binary>>, []),
-    go(DbName, DDoc, IndexName);
+    go(DbName, DDoc, IndexName, StartFun);
 
-go(DbName, DDoc, IndexName) ->
-    StartFun = info,
+go(DbName, DDoc, IndexName, StartFun) ->
     StartArgs = [fabric_util:doc_id_and_rev(DDoc), IndexName],
     case hastings_fabric:run(DbName, StartFun, StartArgs) of
         {ok, Resps} ->

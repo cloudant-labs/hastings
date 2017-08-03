@@ -21,4 +21,7 @@ db_handler(_) -> no_match.
 
 design_handler(<<"_geo">>)      -> fun hastings_httpd:handle_search_req/3;
 design_handler(<<"_geo_info">>) -> fun hastings_httpd:handle_info_req/3;
+design_handler(<<"_geo_disk_size">>) ->
+    fun hastings_httpd:handle_disk_size_req/3;
+
 design_handler(_) -> no_match.

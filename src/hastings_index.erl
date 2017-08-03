@@ -31,6 +31,7 @@
     await/2,
     search/2,
     info/1,
+    disk_size/2,
 
     set_update_seq/2,
     update/3,
@@ -142,6 +143,11 @@ update(Pid, Id, Geoms) ->
 
 remove(Pid, Id) ->
     gen_server:call(Pid, {remove, Id}, infinity).
+
+
+disk_size(DbName, Sig) ->
+    IdxDir = index_directory(DbName, Sig),
+    easton_index:disk_size(IdxDir).
 
 
 init({Manager, DbName, Index, Generation}) ->
