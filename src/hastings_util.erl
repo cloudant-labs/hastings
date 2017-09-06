@@ -14,7 +14,10 @@
 
 
 -export([
-    get_json_docs/2
+    get_json_docs/2,
+    do_rename/1,
+    get_existing_index_dirs/2,
+    calculate_delete_directory/1
 ]).
 
 
@@ -42,3 +45,34 @@ callback(complete, Acc) ->
     {ok, lists:reverse(Acc)};
 callback(timeout, _Acc) ->
     {error, timeout}.
+
+
+do_rename(IdxDir) ->
+    IdxName = filename:basename(IdxDir),
+    DbDir = filename:dirname(IdxDir),
+    DeleteDir = calculate_delete_directory(DbDir),
+    RenamePath = filename:join([DeleteDir, IdxName]),
+    filelib:ensure_dir(RenamePath),
+    Now = calendar:local_time(),
+    case file:rename(IdxDir, RenamePath) of
+        ok -> file:change_time(DeleteDir, Now);
+        Else -> Else
+    end.
+
+
+get_existing_index_dirs(BaseDir, ShardDbName) ->
+    Pattern0 = filename:join([BaseDir, ShardDbName, "*"]),
+    Pattern = binary_to_list(iolist_to_binary(Pattern0)),
+    DirListStrs = filelib:wildcard(Pattern),
+    [iolist_to_binary(DL) || DL <- DirListStrs].
+
+
+calculate_delete_directory(DbNameDir) ->
+    {{Y, Mon, D}, {H, Min, S}} = calendar:universal_time(),
+    Suffix = lists:flatten(
+        io_lib:format(".~w~2.10.0B~2.10.0B."
+        ++ "~2.10.0B~2.10.0B~2.10.0B.deleted"
+        ++ filename:extension(binary_to_list(DbNameDir)),
+            [Y, Mon, D, H, Min, S])
+    ),
+    binary_to_list(filename:rootname(DbNameDir)) ++ Suffix.
