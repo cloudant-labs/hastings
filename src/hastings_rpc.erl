@@ -20,23 +20,30 @@
 
 -export([
     search/4,
-    info/3
+    search/5,
+    info/3,
+    info/4
 ]).
 
 
-search(Shard, DDocInfo, IndexName, HQArgs0) ->
-    erlang:put(io_priority, {interactive, Shard#shard.name}),
-    DDoc = get_ddoc(Shard, DDocInfo),
-    HQArgs = set_bookmark(Shard, HQArgs0),
-    AwaitSeq = get_await_seq(Shard#shard.name, HQArgs),
-    Pid = get_index_pid(Shard#shard.name, DDoc, IndexName),
+search(Shard, DDocInfo, IndexName, HQArgs) ->
+    search(Shard#shard.name, Shard#shard.range, DDocInfo, IndexName, HQArgs).
+
+
+search(ShardName, ShardRange, DDocInfo, IndexName, HQArgs0) ->
+    erlang:put(io_priority, {interactive, ShardName}),
+    DDoc = get_ddoc(ShardName, DDocInfo),
+    HQArgs = set_bookmark(ShardRange, HQArgs0),
+    AwaitSeq = get_await_seq(ShardName, HQArgs),
+    Pid = get_index_pid(ShardName, DDoc, IndexName),
     case hastings_index:await(Pid, AwaitSeq) of
         {ok, _} -> ok;
         Error -> reply(Error)
     end,
     case hastings_index:search(Pid, HQArgs) of
         {ok, Results0} ->
-            Results = lists:map(fun(R) -> fmt_result(Shard, R) end, Results0),
+            MapFun = fun(Result) -> fmt_result(node(), ShardRange, Result) end,
+            Results = lists:map(MapFun, Results0),
             reply({ok, Results});
         Else ->
             reply(Else)
@@ -44,22 +51,28 @@ search(Shard, DDocInfo, IndexName, HQArgs0) ->
 
 
 info(Shard, DDocInfo, IndexName) ->
-    erlang:put(io_priority, {interactive, Shard#shard.name}),
-    DDoc = get_ddoc(Shard, DDocInfo),
-    Pid = get_index_pid(Shard#shard.name, DDoc, IndexName),
+    info(Shard#shard.name, Shard#shard.range, DDocInfo, IndexName).
+
+
+info(ShardName, _ShardRange, DDocInfo, IndexName) ->
+    erlang:put(io_priority, {interactive, ShardName}),
+    DDoc = get_ddoc(ShardName, DDocInfo),
+    Pid = get_index_pid(ShardName, DDoc, IndexName),
     reply(hastings_index:info(Pid)).
 
 
-get_ddoc(Shard, {DDocId, Rev}) ->
-    {ok, DDoc} = ddoc_cache:open_doc(Shard#shard.dbname, DDocId, Rev),
+get_ddoc(ShardName, {DDocId, Rev}) ->
+    DbName = mem3:dbname(ShardName),
+    {ok, DDoc} = ddoc_cache:open_doc(DbName, DDocId, Rev),
     DDoc;
 get_ddoc(_Shard, DDoc) ->
     DDoc.
 
 
-set_bookmark(#shard{node=N, range=R}, #h_args{bookmark=Bookmark} = HQArgs) ->
-    case lists:keyfind({N, R}, 1, Bookmark) of
-        {{N, R}, Value} ->
+set_bookmark(ShardRange, #h_args{bookmark=Bookmark} = HQArgs) ->
+    Node = node(),
+    case lists:keyfind({Node, ShardRange}, 1, Bookmark) of
+        {{Node, ShardRange}, Value} ->
             HQArgs#h_args{bookmark = Value};
         _ ->
             HQArgs#h_args{bookmark = undefined}
@@ -104,18 +117,18 @@ get_or_create_db(DbName, Options) ->
     end.
 
 
-fmt_result(Shard, {DocId, Dist}) ->
+fmt_result(Node, Range, {DocId, Dist}) ->
     #h_hit{
         id = DocId,
         dist = Dist,
-        shard = {Shard#shard.node, Shard#shard.range}
+        shard = {Node, Range}
     };
-fmt_result(Shard, {DocId, Dist, Geom}) ->
+fmt_result(Node, Range, {DocId, Dist, Geom}) ->
     #h_hit{
         id = DocId,
         dist = Dist,
         geom = Geom,
-        shard = {Shard#shard.node, Shard#shard.range}
+        shard = {Node, Range}
     }.
 
 
