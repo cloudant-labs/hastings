@@ -34,13 +34,18 @@
 
 -export([
     handle_db_event/3,
-    clean_db/1
+    clean_db/1,
+    clean_db/2,
+    clean_shard_db/1,
+    clean_shard_db/2
 ]).
 
 
 -record(st, {
-    queue = queue:new(),
-    cleaner
+    selective_clean = queue:new(),
+    full_clean = queue:new(),
+    selective_cleaner,
+    full_cleaner
 }).
 
 
@@ -50,7 +55,7 @@ start_link() ->
 
 cleanup(DbName) ->
     lists:foreach(fun(Node) ->
-        rexi:cast(Node, {gen_server, cast, [?MODULE, {cleanup, DbName}]})
+        rexi:cast(Node, {gen_server, cast, [?MODULE, {cleanup, DbName, []}]})
     end, mem3:nodes()).
 
 
@@ -67,22 +72,38 @@ handle_call(Msg, _From, St) ->
     {stop, {bad_call, Msg}, {bad_call, Msg}, St}.
 
 
-handle_cast({cleanup, DbName0}, St) ->
-    DbName = mem3:dbname(DbName0),
-    case queue:member(DbName, St#st.queue) of
+handle_cast({cleanup, ShardDbName, Options}, St) ->
+    DbName = mem3:dbname(ShardDbName),
+    Context = couch_util:get_value(context, Options, compaction),
+    case Context =:= delete of
         true ->
-            {noreply, St};
+            case queue:member(ShardDbName, St#st.full_clean) of
+                true ->
+                    {noreply, St};
+                false ->
+                    NewQ = queue:in(ShardDbName, St#st.full_clean),
+                    maybe_start_full_cleaner(St#st{full_clean = NewQ})
+            end;
         false ->
-            NewQ = queue:in(DbName, St#st.queue),
-            maybe_start_cleaner(St#st{queue = NewQ})
-    end;
+            case queue:member(DbName, St#st.selective_clean) of
+                true ->
+                    {noreply, St};
+                false ->
+                    NewQ = queue:in(DbName, St#st.selective_clean),
+                    maybe_start_selective_cleaner(
+                        St#st{selective_clean = NewQ})
+            end
+     end;
 
 handle_cast(Msg, St) ->
     {stop, {bad_cast, Msg}, St}.
 
 
-handle_info({'DOWN', _, _, Pid, _}, #st{cleaner = Pid} = St) ->
-    maybe_start_cleaner(St#st{cleaner = undefined});
+handle_info({'DOWN', _, _, Pid, _}, #st{selective_cleaner = Pid} = St) ->
+    maybe_start_selective_cleaner(St#st{selective_cleaner = undefined});
+
+handle_info({'DOWN', _, _, Pid, _}, #st{full_cleaner = Pid} = St) ->
+    maybe_start_full_cleaner(St#st{full_cleaner = undefined});
 
 handle_info(Msg, St) ->
     {stop, {bad_info, Msg}, St}.
@@ -93,38 +114,79 @@ code_change(_OldVsn, St, _Extra) ->
 
 
 handle_db_event(DbName, created, _St) ->
-    gen_server:cast(?MODULE, {cleanup, DbName}),
+    gen_server:cast(?MODULE, {cleanup, DbName, []}),
     {ok, nil};
 handle_db_event(DbName, deleted, _St) ->
-    gen_server:cast(?MODULE, {cleanup, DbName}),
+    gen_server:cast(?MODULE, {cleanup, DbName, [{context, delete}]}),
     {ok, nil};
 handle_db_event(_DbName, _Event, _St) ->
     {ok, nil}.
 
 
-maybe_start_cleaner(#st{cleaner=undefined}=St) ->
-    case queue:is_empty(St#st.queue) of
+maybe_start_selective_cleaner(#st{selective_cleaner=undefined}=St) ->
+    case queue:is_empty(St#st.selective_clean) of
         false ->
-            start_cleaner(St);
+            start_selective_cleaner(St);
         true ->
             {noreply, St}
     end;
 
-maybe_start_cleaner(St) ->
+maybe_start_selective_cleaner(St) ->
     {noreply, St}.
 
 
-start_cleaner(St) ->
-    {{value, DbName}, NewQ} = queue:out(St#st.queue),
-    {Pid, _} = spawn_monitor(?MODULE, clean_db, [DbName]),
-    {noreply, St#st{queue = NewQ, cleaner = Pid}}.
+maybe_start_full_cleaner(#st{full_cleaner=undefined}=St) ->
+    case queue:is_empty(St#st.full_clean) of
+        false ->
+            start_full_cleaner(St);
+        true ->
+            {noreply, St}
+    end;
+
+maybe_start_full_cleaner(St) ->
+    {noreply, St}.
+
+
+start_selective_cleaner(St) ->
+    {{value, DbName}, NewQ} = queue:out(St#st.selective_clean),
+    {Pid, _} = spawn_monitor(?MODULE, clean_db, [DbName, []]),
+    {noreply, St#st{selective_clean = NewQ, selective_cleaner = Pid}}.
+
+
+start_full_cleaner(St) ->
+    {{value, ShardDbName}, NewQ} = queue:out(St#st.full_clean),
+    {Pid, _} = spawn_monitor(
+        ?MODULE, clean_shard_db, [ShardDbName, [{context, delete}]]
+    ),
+    {noreply, St#st{full_clean = NewQ, full_cleaner = Pid}}.
 
 
 clean_db(DbName) ->
+    clean_db(DbName, []).
+
+clean_db(DbName, _Options) ->
+    delete_inactive_indexes(DbName, get_active_sigs(DbName)).
+
+
+clean_shard_db(ShardDbName) ->
+    clean_db(ShardDbName, []).
+
+clean_shard_db(ShardDbName, Options) ->
+    delete = couch_util:get_value(context, Options, delete),
+    DoRecovery = config:get_boolean("couchdb",
+        "enable_database_recovery", false),
+    case DoRecovery of
+        true ->
+            rename_all_indexes(ShardDbName);
+        false ->
+            delete_all_indexes(ShardDbName)
+    end.
+
+
+get_active_sigs(DbName) ->
     {ok, JsonDDocs} = get_ddocs(DbName),
     DDocs = [couch_doc:from_json_obj(DD) || DD <- JsonDDocs],
-    ActiveSigs = lists:usort(lists:flatmap(fun active_sigs/1, DDocs)),
-    cleanup(DbName, ActiveSigs).
+    lists:usort(lists:flatmap(fun active_sigs/1, DDocs)).
 
 
 get_ddocs(DbName) ->
@@ -168,15 +230,9 @@ active_sigs(#doc{body={Fields}}=Doc) ->
     end, IndexNames).
 
 
-cleanup(DbName, ActiveSigs) ->
+delete_inactive_indexes(DbName, ActiveSigs) ->
     BaseDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
-
-    % Find the existing index directories on disk
-    DbNamePattern = <<DbName/binary, ".*">>,
-    Pattern0 = filename:join([BaseDir, "shards", "*", DbNamePattern, "*"]),
-    Pattern = binary_to_list(iolist_to_binary(Pattern0)),
-    DirListStrs = filelib:wildcard(Pattern),
-    DirList = [iolist_to_binary(DL) || DL <- DirListStrs],
+    DirList = hastings_util:get_existing_index_dirs(BaseDir, DbName),
 
     % Create the list of active index directories
     LocalShards = mem3:local_shards(DbName),
@@ -200,3 +256,36 @@ cleanup(DbName, ActiveSigs) ->
                 [{E, T}, Stack])
         end
     end, DeadDirs).
+
+
+delete_all_indexes(ShardDbName) ->
+    BaseDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
+    DirList = hastings_util:get_existing_index_dirs(BaseDir, ShardDbName),
+
+    lists:foreach(fun(IdxDir) ->
+        try
+            hastings_index:destroy(IdxDir),
+            file:del_dir(IdxDir)
+        catch E:T ->
+            Stack = erlang:get_stacktrace(),
+            couch_log:error(
+                "Failed to remove hastings index directory: ~p ~p",
+                [{E, T}, Stack])
+        end
+    end, DirList).
+
+
+rename_all_indexes(ShardDbName) ->
+    BaseDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
+    DirList = hastings_util:get_existing_index_dirs(BaseDir, ShardDbName),
+
+    lists:foreach(fun(IdxDir) ->
+        try
+            hastings_util:do_rename(IdxDir)
+        catch E:T ->
+            Stack = erlang:get_stacktrace(),
+            couch_log:error(
+                "Failed to rename hastings index directory: ~p ~p",
+                [{E, T}, Stack])
+        end
+    end, DirList).
