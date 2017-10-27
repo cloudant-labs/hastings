@@ -10,6 +10,7 @@
 % License for the specific language governing permissions and limitations under
 % the License.
 
+-include_lib("couch/include/couch_eunit.hrl").
 -module(hastings_util).
 
 
@@ -54,9 +55,14 @@ do_rename(IdxDir) ->
     RenamePath = filename:join([DeleteDir, IdxName]),
     filelib:ensure_dir(RenamePath),
     Now = calendar:local_time(),
+    ?debugFmt("Renaming from ~n~p~n to ~n~p~n", [IdxDir, RenamePath]),
     case file:rename(IdxDir, RenamePath) of
-        ok -> file:change_time(DeleteDir, Now);
-        Else -> Else
+        ok ->
+            ?debugMsg("Success..."),
+            file:change_time(DeleteDir, Now);
+        Else ->
+            ?debugFmt("Failed with ~n~p~n...", [Else]),
+            Else
     end.
 
 

@@ -124,8 +124,10 @@ should_rename_index_after_deleting_database(DbName) ->
         ),
         ?debugFmt("GeoIdxDir ... ~n~p~n", [GeoIdxDir]),
         GeoDirExistsAfter = filelib:is_dir(GeoIdxDir),
+        ?debugFmt("GeoDirExistsAfter ... ~n~p~n", [GeoDirExistsAfter]),
         GeoRenamedDirExistsAfter = filelib:is_dir(RenamedPath),
-    
+        ?debugFmt("GeoRenamedDirExistsAfter ... ~n~p~n", [GeoRenamedDirExistsAfter]),
+
         [
             ?assert(GeoDirExistsBefore),
             ?assertNot(GeoDirExistsAfter),
