@@ -117,11 +117,12 @@ should_rename_index_after_deleting_database(DbName) ->
         GeoDirExistsBefore = filelib:is_dir(GeoIdxDir),
     
         fabric:delete_db(DbName, [?ADMIN_CTX]),
-        meck:wait(hastings_vacuum, clean_shard_db, '_', 5000),
+        meck:wait(hastings_vacuum, clean_shard_db, '_', 10000),
 
         RenamedPath = hastings_util:calculate_delete_directory(
             filename:dirname(GeoIdxDir)
         ),
+        ?debugFmt("GeoIdxDir ... ~n~p~n", [GeoIdxDir]),
         GeoDirExistsAfter = filelib:is_dir(GeoIdxDir),
         GeoRenamedDirExistsAfter = filelib:is_dir(RenamedPath),
     
