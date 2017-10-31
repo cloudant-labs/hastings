@@ -29,11 +29,16 @@ setup() ->
     meck:expect(hastings_vacuum, clean_db, fun(A) ->
         meck:passthrough([A])
     end),
+    meck:new(hastings_util, [passthrough]),
+    meck:expect(hastings_util, do_rename, fun(A) ->
+        meck:passthrough([A])
+    end),
     DbName.
 
 
 teardown(_DbName) ->
-    (catch meck:unload(hastings_vacuum)).
+    (catch meck:unload(hastings_vacuum)),
+    (catch meck:unload(hastings_util)).
 
 
 hastings_delete_db_test_() ->
@@ -117,7 +122,7 @@ should_rename_index_after_deleting_database(DbName) ->
         GeoDirExistsBefore = filelib:is_dir(GeoIdxDir),
     
         fabric:delete_db(DbName, [?ADMIN_CTX]),
-        meck:wait(hastings_vacuum, clean_shard_db, '_', 5000),
+        meck:wait(4, hastings_util, do_rename, '_', 5000),
 
         RenamedPath = hastings_util:calculate_delete_directory(
             filename:dirname(GeoIdxDir)
