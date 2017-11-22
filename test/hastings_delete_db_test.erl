@@ -25,8 +25,8 @@
 setup() ->
     DbName = ?tempdb(),
     ok = fabric:create_db(DbName, [?ADMIN_CTX]),
-    meck:new(hastings_vacuum, [passthrough]),
-    meck:expect(hastings_vacuum, clean_db, fun(A) ->
+    meck:new(hastings_index, [passthrough]),
+    meck:expect(hastings_index, destroy, fun(A) ->
         meck:passthrough([A])
     end),
     meck:new(hastings_util, [passthrough]),
@@ -37,7 +37,7 @@ setup() ->
 
 
 teardown(_DbName) ->
-    (catch meck:unload(hastings_vacuum)),
+    (catch meck:unload(hastings_index)),
     (catch meck:unload(hastings_util)).
 
 
@@ -84,7 +84,8 @@ should_delete_index_after_deleting_database(DbName) ->
         GeoDirExistsBefore = filelib:is_dir(GeoIdxDir),
         
         fabric:delete_db(DbName, [?ADMIN_CTX]),
-        meck:wait(hastings_vacuum, clean_shard_db, '_', 5000),
+        Q = config:get("cluster", "q", "8"),
+        meck:wait(list_to_integer(Q), hastings_index, destroy, '_', 5000),
         
         RenamedPath = hastings_util:calculate_delete_directory(GeoIdxDir),
         GeoDirExistsAfter = filelib:is_dir(GeoIdxDir),
@@ -122,7 +123,8 @@ should_rename_index_after_deleting_database(DbName) ->
         GeoDirExistsBefore = filelib:is_dir(GeoIdxDir),
     
         fabric:delete_db(DbName, [?ADMIN_CTX]),
-        meck:wait(8, hastings_util, do_rename, '_', 5000),
+        Q = config:get("cluster", "q", "8"),
+        meck:wait(list_to_integer(Q), hastings_util, do_rename, '_', 5000),
 
         RenamedPath = hastings_util:calculate_delete_directory(
             filename:dirname(GeoIdxDir)
