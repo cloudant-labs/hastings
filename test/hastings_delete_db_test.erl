@@ -61,7 +61,8 @@ hastings_delete_db_test_() ->
 
 
 should_delete_index_after_deleting_database(DbName) ->
-    ?_test(begin
+    Q = list_to_integer(config:get("cluster", "q", "8")),
+    {timeout, Q * 5, ?_test(begin
         Docs = hastings_test_util:make_docs(5),
         {ok, _} = fabric:update_docs(DbName, Docs, [?ADMIN_CTX]),
         {ok, _} = fabric:update_doc(
@@ -84,9 +85,8 @@ should_delete_index_after_deleting_database(DbName) ->
         GeoDirExistsBefore = filelib:is_dir(GeoIdxDir),
         
         fabric:delete_db(DbName, [?ADMIN_CTX]),
-        Q = config:get("cluster", "q", "8"),
-        meck:wait(list_to_integer(Q), hastings_index, destroy, '_', 5000),
-        
+        meck:wait(Q, hastings_index, destroy, '_', 5000),
+
         RenamedPath = hastings_util:calculate_delete_directory(GeoIdxDir),
         GeoDirExistsAfter = filelib:is_dir(GeoIdxDir),
         GeoRenamedDirExistsAfter = filelib:is_dir(RenamedPath),
@@ -96,11 +96,12 @@ should_delete_index_after_deleting_database(DbName) ->
             ?assertNot(GeoDirExistsAfter),
             ?assertNot(GeoRenamedDirExistsAfter)
         ]
-    end).
+    end)}.
 
 
 should_rename_index_after_deleting_database(DbName) ->
-    ?_test(begin
+    Q = list_to_integer(config:get("cluster", "q", "8")),
+    {timeout, Q * 5, ?_test(begin
         Docs = hastings_test_util:make_docs(5),
         {ok, _} = fabric:update_docs(DbName, Docs, [?ADMIN_CTX]),
         {ok, _} = fabric:update_doc(
@@ -123,8 +124,7 @@ should_rename_index_after_deleting_database(DbName) ->
         GeoDirExistsBefore = filelib:is_dir(GeoIdxDir),
     
         fabric:delete_db(DbName, [?ADMIN_CTX]),
-        Q = config:get("cluster", "q", "8"),
-        meck:wait(list_to_integer(Q), hastings_util, do_rename, '_', 5000),
+        meck:wait(Q, hastings_util, do_rename, '_', 5000),
 
         RenamedPath = hastings_util:calculate_delete_directory(
             filename:dirname(GeoIdxDir)
@@ -137,7 +137,7 @@ should_rename_index_after_deleting_database(DbName) ->
             ?assertNot(GeoDirExistsAfter),
             ?assert(GeoRenamedDirExistsAfter)
         ]
-    end).
+    end)}.
 
 
 run_hastings_search(DbName) ->
