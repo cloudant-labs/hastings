@@ -57,4 +57,4 @@ indexUrl = "%s/%s/_geo/%s?bbox=%f,%f,%f,%f" % \
 				(dbUrl, designDocId, indexName, \
 					0, 51, 0, 51)
 resp = requests.get(indexUrl)
-print resp.json
+print resp.json()
