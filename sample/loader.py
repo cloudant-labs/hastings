@@ -65,3 +65,5 @@ resp = requests.get(indexUrl)
 if args.rm:
     requests.delete(dbUrl)
 print resp.json()
+
+resp.raise_for_status()
