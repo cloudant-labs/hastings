@@ -22,7 +22,7 @@ Life of http request
 ------------
 Http requests have the following life cycle：
 
-![hastings.png](https://github.com/cloudant/hastings/blob/master/priv/hastings.png)
+![hastings.png](https://github.com/cloudant-labs/hastings/blob/master/priv/hastings.png)
 
 1. A request from chttpd goes to hastings_httpd.
 
@@ -94,7 +94,7 @@ Metrics
 --
 Hastings metrics are described in the following brief descriptions
 
-https://github.com/cloudant/hastings/blob/master/priv/stats_descriptions.cfg
+https://github.com/cloudant-labs/hastings/blob/master/priv/stats_descriptions.cfg
 
 And in the following FB case
 
