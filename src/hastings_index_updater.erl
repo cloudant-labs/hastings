@@ -19,7 +19,7 @@
 
 -export([
     update/2,
-    load_docs/3
+    load_docs/2
 ]).
 
 
@@ -70,7 +70,7 @@ update(IndexPid, Index) ->
         try
             Args = [<<"add_fun">>, Index#h_idx.def],
             true = ?CQS:proc_prompt(Proc, Args),
-            EnumFun = fun ?MODULE:load_docs/3,
+            EnumFun = fun ?MODULE:load_docs/2,
             Acc0 = #acc{
                 idx_pid = IndexPid,
                 db = Db,
@@ -78,7 +78,7 @@ update(IndexPid, Index) ->
                 total_changes = TotalChanges,
                 name = index_name(DbName, DDocId, IndexName)
             },
-            {ok, _, _} = couch_db:enum_docs_since(Db, UpSeq, EnumFun, Acc0, []),
+            {ok, _} = couch_db:fold_changes(Db, UpSeq, EnumFun, Acc0),
             hastings_index:set_update_seq(IndexPid, NewSeq)
         after
             ?CQS:ret_os_process(Proc)
@@ -89,7 +89,7 @@ update(IndexPid, Index) ->
     end.
 
 
-load_docs(FDI, _, Acc) ->
+load_docs(FDI, Acc) ->
     ChangesDone = Acc#acc.changes_done,
     couch_task_status:update([
             {changes_done, ChangesDone},

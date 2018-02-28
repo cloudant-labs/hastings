@@ -160,7 +160,8 @@ handle_error_int(Reason, Worker, St) ->
 
 
 start_worker(St, Shard) ->
-    Msg = {hastings_rpc, St#st.start_fun, [Shard | St#st.start_args]},
+    StartArgs = [Shard#shard.name, Shard#shard.range | St#st.start_args],
+    Msg = {hastings_rpc, St#st.start_fun, StartArgs},
     Ref = rexi:cast(Shard#shard.node, Msg),
     Shard#shard{ref = Ref}.
 
