@@ -14,6 +14,7 @@
 -behavior(gen_server).
 
 
+-include_lib("couch/include/couch_eunit.hrl").
 -include_lib("couch/include/couch_db.hrl").
 -include("hastings.hrl").
 
@@ -86,6 +87,12 @@ stop(Pid) ->
 
 
 destroy(IndexDir) ->
+    case ets:lookup(hastings_by_dir, IndexDir) of
+        [] -> ok;
+        [Pid] ->
+            ?debugFmt("before hastings_index:close Pid ... ~n~p~n", [Pid]),
+            catch stop(Pid)
+    end,
     easton_index:destroy(IndexDir).
 
 
@@ -171,6 +178,8 @@ terminate(Reason, St) ->
     record_abnormal_termination(Reason),
     Index = St#st.index,
     catch exit(St#st.updater_pid, kill),
+    ?debugFmt("Index#h_idx.pid ... ~n~p~n", [Index#h_idx.pid]),
+
     ok = easton_index:close(Index#h_idx.pid).
 
 
@@ -338,6 +347,10 @@ open_index(DbName, Idx) ->
             couch_stats:update_histogram([geo, index, open_latency], Latency),
             couch_stats:increment_counter([geo, index, open_count], 1),
             UpdateSeq = easton_index:get(Pid, update_seq, 0),
+            ?debugFmt("hastings_index IdxDir ... ~n~p~n", [IdxDir]),
+            ?debugFmt("hastings_index Pid ... ~n~p~n", [Pid]),
+
+            ets:insert(hastings_by_dir, {IdxDir, Pid}),
             {ok, Idx#h_idx{
                 pid = Pid,
                 dbname = DbName,

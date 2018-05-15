@@ -23,6 +23,7 @@
 
 
 setup() ->
+    config:set("cluster", "q", "1"),
     DbName = ?tempdb(),
     ok = fabric:create_db(DbName, [?ADMIN_CTX]),
     meck:new(hastings_index, [passthrough]),

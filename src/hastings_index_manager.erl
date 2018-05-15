@@ -20,6 +20,8 @@
 
 -define(BY_SIG, hastings_by_sig).
 -define(BY_PID, hastings_by_pid).
+-define(BY_DIR, hastings_by_dir).
+
 
 
 -export([
@@ -62,6 +64,7 @@ upgrade() ->
 init([]) ->
     ets:new(?BY_SIG, [set, public, named_table]),
     ets:new(?BY_PID, [set, public, named_table]),
+    ets:new(?BY_DIR, [set, public, named_table]),
     process_flag(trap_exit, true),
     {ok, #st{}}.
 
