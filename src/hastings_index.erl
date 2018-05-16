@@ -87,11 +87,21 @@ stop(Pid) ->
 
 
 destroy(IndexDir) ->
-    case ets:lookup(hastings_by_dir, IndexDir) of
-        [] -> ok;
-        [Pid] ->
-            ?debugFmt("before hastings_index:close Pid ... ~n~p~n", [Pid]),
-            catch stop(Pid)
+%%    case ets:lookup(hastings_by_dir, IndexDir) of
+%%        [] -> ok;
+%%        [Pid] ->
+%%            ?debugFmt("before hastings_index:close Pid ... ~n~p~n", [Pid]),
+%%            catch stop(Pid)
+%%    end,
+    {DbName, Sig} = sig_from_directory(IndexDir),
+    ?debugFmt("hasting_index sig_from_directory ... ~n~p~n", [{DbName, Sig}]),
+    case ets:lookup(hastings_by_sig, {DbName, Sig}) of
+        [{_, {_, Pid}}] when is_pid(Pid) ->
+            ?debugFmt("before hastings_index:stop Pid ... ~n~p~n", [Pid]),
+            catch stop(Pid);
+        Else ->
+            ?debugFmt("hastings_index:stop Else ... ~n~p~n", [Else]),
+            ok
     end,
     easton_index:destroy(IndexDir).
 
@@ -350,7 +360,9 @@ open_index(DbName, Idx) ->
             ?debugFmt("hastings_index IdxDir ... ~n~p~n", [IdxDir]),
             ?debugFmt("hastings_index Pid ... ~n~p~n", [Pid]),
 
-            ets:insert(hastings_by_dir, {IdxDir, Pid}),
+            {DbFullName, Sig} = sig_from_directory(IdxDir),
+            ?debugFmt("hastings_index {DbFullName, Sig} ... ~n~p~n", [{DbFullName, Sig}]),
+            ets:insert(hastings_by_sig, {{DbFullName, Sig}, Pid}),
             {ok, Idx#h_idx{
                 pid = Pid,
                 dbname = DbName,
@@ -517,6 +529,21 @@ index_name(#h_idx{dbname=DbName, ddoc_id=DDocId, name=IndexName}) ->
 index_directory(DbName, Sig) ->
     GeoDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
     filename:join([GeoDir, DbName, Sig]).
+
+
+sig_from_directory(Directory) ->
+    Sig = filename:basename(Directory),
+    GeoDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
+    GeoDirParts = filename:split(GeoDir),
+    BaseParts = filename:split(filename:dirname(Directory)),
+    DbNameParts = strip_leading(GeoDirParts, BaseParts),
+    {filename:join(DbNameParts), Sig}.
+
+
+strip_leading([Part | Rest1], [Part | Rest2]) ->
+    strip_leading(Rest1, Rest2);
+strip_leading(_, Stripped) ->
+    Stripped.
 
 
 get_timeout() ->

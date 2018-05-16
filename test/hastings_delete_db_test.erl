@@ -63,7 +63,7 @@ hastings_delete_db_test_() ->
 
 should_delete_index_after_deleting_database(DbName) ->
     Q = list_to_integer(config:get("cluster", "q", "8")),
-    {timeout, Q * 5, ?_test(begin
+    {timeout, ?TIMEOUT, ?_test(begin
         Docs = hastings_test_util:make_docs(5),
         {ok, _} = fabric:update_docs(DbName, Docs, [?ADMIN_CTX]),
         {ok, _} = fabric:update_doc(
