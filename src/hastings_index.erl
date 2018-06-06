@@ -86,6 +86,13 @@ stop(Pid) ->
 
 
 destroy(IndexDir) ->
+    {DbName, Sig} = sig_from_directory(IndexDir),
+    case ets:lookup(hastings_by_sig, {DbName, Sig}) of
+        [{_, Pid}] when is_pid(Pid) ->
+            catch stop(Pid);
+        _ ->
+           ok
+    end,
     easton_index:destroy(IndexDir).
 
 
@@ -523,3 +530,18 @@ record_abnormal_termination({shutdown, _}) ->
     ok;
 record_abnormal_termination(_) ->
     couch_stats:increment_counter([geo, index, crash], 1).
+
+
+sig_from_directory(Directory) ->
+    Sig = filename:basename(Directory),
+    GeoDir = config:get("couchdb", "geo_index_dir", "/srv/geo_index"),
+    GeoDirParts = [list_to_binary(Dir) || Dir <- filename:split(GeoDir)],
+    BaseParts = filename:split(filename:dirname(Directory)),
+    DbNameParts = strip_leading(GeoDirParts, BaseParts),
+    {filename:join(DbNameParts), Sig}.
+
+
+strip_leading([Part | Rest1], [Part | Rest2]) ->
+    strip_leading(Rest1, Rest2);
+strip_leading(_, Stripped) ->
+    Stripped.
