@@ -11,7 +11,12 @@
 # the License.
 
 import json
+import argparse
 import requests
+
+parser = argparse.ArgumentParser(description='Run sample test `ski_areas`')
+parser.add_argument('--rm', dest='rm', action='store_true', help='Remove database after completion')
+args = parser.parse_args()
 
 dbname = "colorado_skiing"
 areas = "data/ski_areas.json"
@@ -58,5 +63,9 @@ indexUrl = "%s/%s/_geo/%s?bbox=%f,%f,%f,%f" % \
 				(dbUrl, designDocId, indexName, \
 					-107.70996093749999,38.71123253895224,-104.534912109375,40.613952441166596)
 resp = requests.get(indexUrl)
+if args.rm:
+    requests.delete(dbUrl)
 print indexUrl
 print resp.json()
+
+resp.raise_for_status()
