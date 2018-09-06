@@ -300,10 +300,10 @@ handle_info({'EXIT', Pid, {updated, NewSeq}}, #st{updater_pid = Pid} = St) ->
                 waiting_list = []
             };
         StillWaiting ->
-            Pid = spawn_link(hastings_index_updater, update, [self(), Index]),
+            Pid2 = spawn_link(hastings_index_updater, update, [self(), Index]),
             St#st{
                 index = Index,
-                updater_pid = Pid,
+                updater_pid = Pid2,
                 waiting_list = StillWaiting
             }
     end,
