@@ -39,18 +39,23 @@
 
 update(IndexPid, Index) ->
     #h_idx{
+        pid = Pid,
         dbname = DbName,
         ddoc_id = DDocId,
         name = IndexName,
         lang = Language,
-        update_seq = UpSeq
+        update_seq = UpSeq,
+        sig = Sig
     } = Index,
     erlang:put(io_priority, {view_update, DbName, IndexName}),
     {ok, Db} = couch_db:open_int(DbName, []),
     try
         %% compute on all docs modified since we last computed.
-        TotalChanges = couch_db:count_changes_since(Db, UpSeq),
+        TotalUpdateChanges = couch_db:count_changes_since(Db, UpSeq),
 
+        IdxPurgeSeq = hastings_util:get_idx_purge_seq(DbName, Pid),
+        TotalPurgeChanges = count_pending_purged_docs_since(Db, IdxPurgeSeq),
+        TotalChanges = TotalUpdateChanges + TotalPurgeChanges,
         couch_task_status:add_task([
             {type, geo_search_indexer},
             {user, cloudant_util:customer_name(Db)},
@@ -65,8 +70,11 @@ update(IndexPid, Index) ->
         %% update status every half second
         couch_task_status:set_update_frequency(500),
 
+        purge_index(DbName, Db, IndexPid, Index, IdxPurgeSeq),
+
         NewSeq = couch_db:get_update_seq(Db),
         Proc = ?CQS:get_os_process(Language),
+        [Changes] = couch_task_status:get([changes_done]),
         try
             Args = [<<"add_fun">>, Index#h_idx.def],
             true = ?CQS:proc_prompt(Proc, Args),
@@ -75,6 +83,7 @@ update(IndexPid, Index) ->
                 idx_pid = IndexPid,
                 db = Db,
                 proc = Proc,
+                changes_done = Changes,
                 total_changes = TotalChanges,
                 name = index_name(DbName, DDocId, IndexName)
             },
@@ -137,6 +146,45 @@ load_docs(FDI, Acc) ->
             {ok, Acc#acc{changes_done = ChangesDone + 1}}
     end.
 
+purge_index(DbName, Db, IndexPid, Index, IdxPurgeSeq) ->
+    #h_idx{
+        dbname = DbName,
+        ddoc_id = DDocId,
+        name = IndexName,
+        sig = Sig
+    } = Index,
+    FoldFun = fun({PurgeSeq, _UUId, Id, _Revs}, _Acc) ->
+        hastings_index:remove(IndexPid, Id),
+        hastings_index:set_purge_seq(IndexPid, PurgeSeq),
+        update_task(1),
+        {ok, PurgeSeq}
+    end,
+    {ok, PSeq} = couch_db:fold_purge_infos(
+        Db, IdxPurgeSeq, FoldFun, nil, []
+    ),
+    if PSeq == nil -> ok; true ->
+        hastings_util:update_local_purge_doc(
+            Db, DbName, DDocId, IndexName, Sig, PSeq
+        )
+    end.
+
 
 index_name(DbName, DDocId, IndexName) ->
     <<DbName/binary, " ", DDocId/binary, " ", IndexName/binary>>.
+
+
+count_pending_purged_docs_since(Db, IdxPurgeSeq) ->
+    DbPurgeSeq = couch_db:get_purge_seq(Db),
+    DbPurgeSeq - IdxPurgeSeq.
+
+
+update_task(NumChanges) ->
+    [Changes, Total] = couch_task_status:get([changes_done, total_changes]),
+    Changes2 = Changes + NumChanges,
+    Progress = case Total of
+        0 ->
+            0;
+        _ ->
+            (Changes2 * 100) div Total
+    end,
+    couch_task_status:update([{progress, Progress}, {changes_done, Changes2}]).

@@ -17,9 +17,24 @@
 -include_lib("couch/include/couch_db.hrl").
 -include_lib("couch/include/couch_eunit.hrl").
 
+init_db(Name, Count) ->
+  {ok, Db} = new_db(Name),
+  Docs = make_docs(Count),
+  save_docs(Db, Docs).
 
-save_docs(DbName, Docs) ->
-    {ok, _} = fabric:update_docs(DbName, Docs, [?ADMIN_CTX]).
+
+new_db(Name) ->
+  couch_server:delete(Name, [?ADMIN_CTX]),
+  {ok, Db} = couch_db:create(Name, [?ADMIN_CTX]),
+  save_docs(Db, [ddoc(geo)]).
+
+delete_db(Name) ->
+  couch_server:delete(Name, [?ADMIN_CTX]).
+
+
+save_docs(Db, Docs) ->
+  {ok, _} = couch_db:update_docs(Db, Docs, []),
+  couch_db:reopen(Db).
 
 
 make_docs(Count) ->

@@ -17,8 +17,25 @@
     get_json_docs/2,
     do_rename/1,
     get_existing_index_dirs/2,
-    calculate_delete_directory/1
+    calculate_delete_directory/1,
+    get_oldest_purge_seq/1,
+    get_idx_purge_seq/2,
+    close_index/1,
+    get_local_purge_doc_id/1,
+    get_value_from_options/2,
+    ensure_local_purge_docs/2,
+    update_local_purge_doc/6,
+    maybe_create_local_purge_doc/2,
+    get_signature_from_idxdir/1,
+    verify_index_exists/2
 ]).
+
+
+-include_lib("couch/include/couch_db.hrl").
+-include("hastings.hrl").
+
+
+-define(TIMEOUT, 300000).
 
 
 get_json_docs(DbName, DocIds) ->
@@ -76,3 +93,154 @@ calculate_delete_directory(DbNameDir) ->
             [Y, Mon, D, H, Min, S])
     ),
     binary_to_list(filename:rootname(DbNameDir)) ++ Suffix.
+
+
+get_oldest_purge_seq(DbName) ->
+    couch_util:with_db(DbName, fun(Db) ->
+        couch_db:get_oldest_purge_seq(Db)
+    end).
+
+
+get_idx_purge_seq(DbName, Pid) ->
+    OldestSeq = get_oldest_purge_seq(DbName),
+    erlang:max(0, easton_index:get(Pid, purge_seq, OldestSeq - 1)).
+
+
+close_index(Pid) ->
+    easton_index:close(Pid),
+    receive
+        {'EXIT', _, _} -> ok
+    after ?TIMEOUT ->
+        throw({timeout, close_index})
+    end.
+
+
+ensure_local_purge_docs(DbName, DDocs) ->
+    couch_util:with_db(DbName, fun(Db) ->
+        lists:foreach(fun(DDoc) ->
+            #doc{body = {Props}} = DDoc,
+            case couch_util:get_value(<<"st_indexes">>, Props) of
+                undefined ->
+                    ok;
+                _ ->
+                    try hastings_index:design_doc_to_indexes(DDoc) of
+                        STIndexes -> ensure_local_purge_doc(Db, STIndexes)
+                    catch _:_ ->
+                        ok
+                    end
+            end
+         end, DDocs)
+    end).
+
+
+ensure_local_purge_doc(Db, STIndexes) ->
+    if STIndexes == [] -> ok; true ->
+        lists:map(fun(STIndex) ->
+            maybe_create_local_purge_doc(Db, STIndex)
+        end, STIndexes)
+    end.
+
+
+maybe_create_local_purge_doc(Db, Index) ->
+    Sig = Index#h_idx.sig,
+    case couch_db:open_doc(Db, get_local_purge_doc_id(Sig), []) of
+        {not_found, _Reason} ->
+            DefaultPurgeSeq = couch_db:get_purge_seq(Db),
+            PurgeSeq = try easton_index:get(Index#h_idx.pid, purge_seq) of
+                IdxPurgeSeq -> IdxPurgeSeq
+            catch _:_ ->
+                DefaultPurgeSeq
+            end,
+            update_local_purge_doc(
+                Db,
+                Index#h_idx.dbname,
+                Index#h_idx.ddoc_id,
+                Index#h_idx.name,
+                Sig,
+                PurgeSeq
+            );
+        {ok, _LocalPurgeDoc} ->
+            ok
+    end.
+
+
+update_local_purge_doc(Db, DbName, DDocId, IndexName, Sig, PurgeSeq) ->
+    {Mega, Secs, _} = os:timestamp(),
+    NowSecs = Mega * 1000000 + Secs,
+    Doc = couch_doc:from_json_obj({[
+        {<<"_id">>, get_local_purge_doc_id(Sig)},
+        {<<"purge_seq">>, PurgeSeq},
+        {<<"timestamp_utc">>, NowSecs},
+        {<<"ddoc_id">>, DDocId},
+        {<<"indexname">>, IndexName},
+        {<<"signature">>, Sig},
+        {<<"type">>, <<"hastings">>}
+    ]}),
+    couch_db:update_doc(Db, Doc, []).
+
+
+get_value_from_options(Key, Options) ->
+    case couch_util:get_value(Key, Options) of
+        undefined ->
+            Reason = binary_to_list(Key) ++ " must exist in Options.",
+            throw({bad_request, Reason});
+        Value -> Value
+    end.
+
+
+get_local_purge_doc_id(Sig) ->
+    ?l2b(?LOCAL_DOC_PREFIX ++ "purge-" ++ "hastings-" ++ Sig).
+
+
+get_signature_from_idxdir(IdxDir) ->
+    IdxDirList = filename:split(IdxDir),
+    Sig = lists:last(IdxDirList),
+    case [Ch || Ch <- Sig, not (((Ch >= $0) and (Ch =< $9))
+        orelse ((Ch >= $a) and (Ch =< $f))
+        orelse ((Ch >= $A) and (Ch =< $F)))] == [] of
+        true -> Sig;
+        false -> undefined
+    end.
+
+
+verify_index_exists(DbName, Props) ->
+    try
+        Type = couch_util:get_value(<<"type">>, Props),
+        if Type =/= <<"hastings">> -> false; true ->
+            DDocId = couch_util:get_value(<<"ddoc_id">>, Props),
+            IndexName = couch_util:get_value(<<"indexname">>, Props),
+            Sig = couch_util:get_value(<<"signature">>, Props),
+            couch_util:with_db(DbName, fun(Db) ->
+                {ok, DesignDocs} = couch_db:get_design_docs(Db),
+                case get_ddoc(DbName, DesignDocs, DDocId) of
+                    #doc{} = DDoc ->
+                        {ok, IdxState} = hastings_index:design_doc_to_index(
+                            DDoc, IndexName),
+                        IdxState#h_idx.sig == Sig;
+                    not_found ->
+                        false
+                end
+            end)
+        end
+    catch _:_ ->
+        false
+    end.
+
+
+get_ddoc(<<"shards/", _/binary>> = _DbName, DesignDocs, DDocId) ->
+    DDocs = [couch_doc:from_json_obj(DD) || DD <- DesignDocs],
+    case lists:keyfind(DDocId, #doc.id, DDocs) of
+        #doc{} = DDoc -> DDoc;
+        false -> not_found
+    end;
+get_ddoc(DbName, DesignDocs, DDocId) ->
+    couch_util:with_db(DbName, fun(Db) ->
+        case lists:keyfind(DDocId, #full_doc_info.id, DesignDocs) of
+            #full_doc_info{} = DDocInfo ->
+                {ok, DDoc} = couch_db:open_doc_int(
+                    Db, DDocInfo, [ejson_body]),
+                DDoc;
+            false ->
+                not_found
+        end
+    end).
