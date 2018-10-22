@@ -100,10 +100,12 @@ update(IndexPid, Index) ->
 
 load_docs(FDI, Acc) ->
     ChangesDone = Acc#acc.changes_done,
+    Total = Acc#acc.total_changes,
+    Progress = if Total == 0 -> 0; true -> (ChangesDone * 100) div Total end,
     couch_task_status:update([
             {changes_done, ChangesDone},
-            {progress, (ChangesDone * 100) div Acc#acc.total_changes}
-        ]),
+            {progress, Progress}
+    ]),
 
     DI = couch_doc:to_doc_info(FDI),
     #doc_info{id=Id, high_seq=Seq, revs=[#rev_info{deleted=Del}|_]} = DI,
