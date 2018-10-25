@@ -170,7 +170,7 @@ update_local_purge_doc(Db, DbName, DDocId, IndexName, Sig, PurgeSeq) ->
     Doc = couch_doc:from_json_obj({[
         {<<"_id">>, get_local_purge_doc_id(Sig)},
         {<<"purge_seq">>, PurgeSeq},
-        {<<"timestamp_utc">>, NowSecs},
+        {<<"updated_on">>, NowSecs},
         {<<"ddoc_id">>, DDocId},
         {<<"indexname">>, IndexName},
         {<<"signature">>, Sig},
