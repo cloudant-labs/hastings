@@ -147,6 +147,7 @@ maybe_create_local_purge_doc(Db, Index) ->
         {not_found, _Reason} ->
             DefaultPurgeSeq = couch_db:get_purge_seq(Db),
             PurgeSeq = try easton_index:get(Index#h_idx.pid, purge_seq) of
+                false -> DefaultPurgeSeq;
                 IdxPurgeSeq -> IdxPurgeSeq
             catch _:_ ->
                 DefaultPurgeSeq

@@ -133,14 +133,28 @@ test_purge_local_purge_doc(Db) ->
         DocIds1 = [
             <<"point1">>
         ],
-        purge_docs(Db, DocIds1),
-
-        {ok, Hits1} = run_hastings_search(Db),
-        ?assertEqual(4, lists:flatlength(Hits1)),
 
         {ok, DDoc} = couch_db:open_doc(Db, <<"_design/geodd">>, []),
         {ok, Idx} = hastings_index:design_doc_to_index(DDoc, <<"geoidx">>),
-        {ok, Db2} = couch_db:reopen(Db),
+        {ok, Db1} = couch_db:reopen(Db),
+
+        {ok, LocalPurgeDoc0} = couch_db:open_doc(
+            Db1,
+            hastings_util:get_local_purge_doc_id(Idx#h_idx.sig),
+            []
+        ),
+        {Props} = couch_doc:to_json_obj(LocalPurgeDoc0, []),
+        Rev1 = couch_util:get_value(<<"_rev">>, Props),
+        ?assertEqual(<<"0-1">>, Rev1),
+        PurgeSeq = couch_util:get_value(<<"purge_seq">>, Props),
+        ?assertEqual(0, PurgeSeq),
+
+        purge_docs(Db1, DocIds1),
+
+        {ok, Hits1} = run_hastings_search(Db1),
+        ?assertEqual(4, lists:flatlength(Hits1)),
+
+        {ok, Db2} = couch_db:reopen(Db1),
 
         {ok, LocalPurgeDoc1} = couch_db:open_doc(
             Db2,
@@ -150,6 +164,8 @@ test_purge_local_purge_doc(Db) ->
         {Props1} = couch_doc:to_json_obj(LocalPurgeDoc1, []),
         Rev1 = couch_util:get_value(<<"_rev">>, Props1),
         ?assertEqual(<<"0-1">>, Rev1),
+        PurgeSeq2 = couch_util:get_value(<<"purge_seq">>, Props1),
+        ?assertEqual(1, PurgeSeq2),
 
         DocIds2 = [
             <<"point2">>
