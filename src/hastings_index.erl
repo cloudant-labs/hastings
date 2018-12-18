@@ -339,6 +339,10 @@ handle_info({'EXIT', Pid, Reason}, #st{index=#h_idx{pid={_, Pid}}} = St) ->
     couch_log:info(Fmt, [index_name(St#st.index), Reason]),
     [gen_server:reply(P, {error, Reason}) || {P, _} <- St#st.waiting_list],
     {stop, normal, St};
+handle_info({'EXIT', Pid, Reason}, St) ->
+    % probably hastings_index_manager.
+    couch_log:notice("Unknown pid ~p closed with reason ~p", [Pid, Reason]),
+    {stop, normal, St};
 handle_info({'DOWN', _, _, DbPid, Reason}, #st{dbpid=DbPid} = St) ->
     Fmt = "~s ~s closing: Db pid ~p closing w/ reason ~w",
     couch_log:debug(Fmt, [?MODULE, index_name(St#st.index), DbPid, Reason]),
