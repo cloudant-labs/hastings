@@ -33,7 +33,7 @@ teardown(DbName) ->
     ok = fabric:delete_db(DbName, [?ADMIN_CTX]).
 
 
-ken_test_() ->
+ken_test() ->
     {
         "Ken Tests",
         {
@@ -71,6 +71,6 @@ ken(DbName) ->
 
         ok = meck:reset(hastings_index),
         {ok, _} = fabric:update_doc(DbName, DDoc, [?ADMIN_CTX]),
-        ?assertEqual(ok, meck:wait(8, hastings_index,design_doc_to_indexes, '_', 5000)),
+        ?assertEqual(ok, meck:wait(8, hastings_index,design_doc_to_indexes, '_', 15000)),
         ok
     end).
