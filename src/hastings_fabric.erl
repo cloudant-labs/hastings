@@ -66,7 +66,7 @@ init_state(DbName, StartFun, StartArgs, PrimaryShards, SecondaryShards) ->
     {Nodes, Shards, Replacements} = get_shards(
             DbName, PrimaryShards, SecondaryShards),
     Counters0 = fabric_dict:init(Shards, nil),
-    case fabric_view:is_progress_possible(Counters0) of
+    case fabric_ring:is_progress_possible(Counters0) of
         true ->
             ok;
         false ->
@@ -124,7 +124,7 @@ handle_message({rexi_EXIT, {maintenance_mode, _}}, Worker, St) ->
                 NewWorker = start_worker(St, Repl),
                 fabric_dict:store(NewWorker, nil, CounterAcc)
             end, CurrCounters, Replacements),
-            true = fabric_view:is_progress_possible(NewCounters),
+            true = fabric_ring:is_progress_possible(NewCounters),
             NewRefs = fabric_dict:fetch_keys(NewCounters),
             NewSt = St#st{
                 counters = NewCounters,
@@ -151,7 +151,7 @@ handle_message(Else, Worker, St) ->
 
 handle_error_int(Reason, Worker, St) ->
     Counters = fabric_dict:erase(Worker, St#st.counters),
-    case fabric_view:is_progress_possible(Counters) of
+    case fabric_ring:is_progress_possible(Counters) of
         true ->
             {ok, St#st{counters = Counters}};
         false ->
