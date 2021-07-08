@@ -111,8 +111,8 @@ get_update_seq(DbName) ->
 get_or_create_db(DbName, Options) ->
     case couch_db:open_int(DbName, Options) of
         {not_found, no_db_file} ->
-            couch_log:warning("~s creating ~s", [?MODULE, DbName]),
-            couch_server:create(DbName, Options);
+            couch_log:warning("~p creating ~s", [?MODULE, DbName]),
+            mem3_util:get_or_create_db(DbName, Options);
         Else ->
             Else
     end.
