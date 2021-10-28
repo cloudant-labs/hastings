@@ -165,7 +165,7 @@ maybe_create_local_purge_doc(Db, Index) ->
     end.
 
 
-update_local_purge_doc(Db, DbName, DDocId, IndexName, Sig, PurgeSeq) ->
+update_local_purge_doc(Db, _DbName, DDocId, IndexName, Sig, PurgeSeq) ->
     {Mega, Secs, _} = os:timestamp(),
     NowSecs = Mega * 1000000 + Secs,
     Doc = couch_doc:from_json_obj({[
