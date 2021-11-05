@@ -45,7 +45,7 @@ update(IndexPid, Index) ->
         name = IndexName,
         lang = Language,
         update_seq = UpSeq,
-        sig = Sig
+        sig = _Sig
     } = Index,
     erlang:put(io_priority, {view_update, DbName, IndexName}),
     {ok, Db} = couch_db:open_int(DbName, []),
