@@ -251,7 +251,7 @@ delete_inactive_indexes(DbName, ActiveSigs) ->
             hastings_index:destroy(IdxDir),
             file:del_dir(IdxDir),
             cleanup_local_purge_doc(DbName, IdxDir)
-        catch ?STACKTRACE(E, T, Stack)
+        catch E:T:Stack ->
             couch_log:error("Failed to remove hastings index directory: ~p ~p",
                 [{E, T}, Stack])
         end
@@ -266,7 +266,7 @@ delete_all_indexes(ShardDbName) ->
         try
             hastings_index:destroy(IdxDir),
             file:del_dir(IdxDir)
-        catch ?STACKTRACE(E, T, Stack)
+        catch E:T:Stack ->
             couch_log:error(
                 "Failed to remove hastings index directory: ~p ~p",
                 [{E, T}, Stack])
@@ -281,7 +281,7 @@ rename_all_indexes(ShardDbName) ->
     lists:foreach(fun(IdxDir) ->
         try
             hastings_util:do_rename(IdxDir)
-        catch ?STACKTRACE(E, T, Stack)
+        catch E:T:Stack ->
             couch_log:error(
                 "Failed to rename hastings index directory: ~p ~p",
                 [{E, T}, Stack])
