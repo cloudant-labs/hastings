@@ -13,15 +13,15 @@
 -module(hastings_httpd).
 
 
--include("hastings.hrl").
--include_lib("couch/include/couch_db.hrl").
-
-
 -export([
     handle_search_req/3,
     handle_info_req/3,
     handle_cleanup_req/2
 ]).
+
+
+-include("hastings.hrl").
+-include_lib("couch/include/couch_db.hrl").
 
 
 handle_search_req(Req, Db, DDoc) ->

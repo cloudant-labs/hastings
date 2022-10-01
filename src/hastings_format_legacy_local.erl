@@ -12,9 +12,9 @@
 
 -module(hastings_format_legacy_local).
 
--include("hastings.hrl").
-
 -export([hits_to_json/3]).
+
+-include("hastings.hrl").
 
 hits_to_json(_DbName, Hits, HQArgs) ->
     Bookmark = hastings_bookmark:update(HQArgs#h_args.bookmark, Hits),

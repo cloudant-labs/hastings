@@ -13,11 +13,6 @@
 -module(hastings_rpc).
 
 
--include_lib("couch/include/couch_db.hrl").
--include_lib("mem3/include/mem3.hrl").
--include("hastings.hrl").
-
-
 -export([
     search/4,
     search/5,
@@ -25,6 +20,11 @@
     info/4,
     reply/1
 ]).
+
+
+-include_lib("couch/include/couch_db.hrl").
+-include_lib("mem3/include/mem3.hrl").
+-include("hastings.hrl").
 
 
 search(Shard, DDocInfo, IndexName, HQArgs) ->

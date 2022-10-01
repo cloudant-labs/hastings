@@ -14,10 +14,6 @@
 -behavior(gen_server).
 
 
--include_lib("couch/include/couch_db.hrl").
--include("hastings.hrl").
-
-
 -export([
     start_link/4,
     stop/1,
@@ -47,6 +43,11 @@
     handle_info/2,
     code_change/3
 ]).
+
+
+-include_lib("couch/include/couch_db.hrl").
+-include("hastings.hrl").
+
 
 -ifdef(TEST).
 

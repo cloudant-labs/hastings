@@ -13,11 +13,6 @@
 -module(hastings_vacuum).
 
 
--include_lib("mem3/include/mem3.hrl").
--include_lib("couch/include/couch_db.hrl").
--include("hastings.hrl").
-
-
 -export([
     start_link/0,
     cleanup/1
@@ -47,6 +42,11 @@
     selective_cleaner,
     full_cleaner
 }).
+
+
+-include_lib("mem3/include/mem3.hrl").
+-include_lib("couch/include/couch_db.hrl").
+-include("hastings.hrl").
 
 
 start_link() ->

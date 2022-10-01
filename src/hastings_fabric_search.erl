@@ -13,14 +13,14 @@
 -module(hastings_fabric_search).
 
 
--include_lib("mem3/include/mem3.hrl").
--include_lib("couch/include/couch_db.hrl").
--include("hastings.hrl").
-
-
 -export([
     go/4
 ]).
+
+
+-include_lib("mem3/include/mem3.hrl").
+-include_lib("couch/include/couch_db.hrl").
+-include("hastings.hrl").
 
 
 go(DbName, GroupId, IndexName, HQArgs) when is_binary(GroupId) ->
