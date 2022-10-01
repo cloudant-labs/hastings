@@ -12,13 +12,13 @@
 
 -module(hastings_plugin_couch_db).
 
--include_lib("couch/include/couch_eunit.hrl").
-
-
 -export([
     is_valid_purge_client/2,
     on_compact/2
 ]).
+
+
+-include_lib("couch/include/couch_eunit.hrl").
 
 
 is_valid_purge_client(DbName, Props) ->

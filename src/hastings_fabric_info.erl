@@ -13,12 +13,12 @@
 -module(hastings_fabric_info).
 
 
+-export([go/3]).
+
+
 -include("hastings.hrl").
 -include_lib("mem3/include/mem3.hrl").
 -include_lib("couch/include/couch_db.hrl").
-
-
--export([go/3]).
 
 
 go(DbName, DDocId, IndexName) when is_binary(DDocId) ->

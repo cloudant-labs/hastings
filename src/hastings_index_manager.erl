@@ -14,10 +14,6 @@
 -behavior(gen_server).
 
 
--include_lib("couch/include/couch_db.hrl").
--include("hastings.hrl").
-
-
 -define(BY_SIG, hastings_by_sig).
 -define(BY_PID, hastings_by_pid).
 
@@ -45,6 +41,10 @@
 -record(st, {
     generation = 0
 }).
+
+
+-include_lib("couch/include/couch_db.hrl").
+-include("hastings.hrl").
 
 
 start_link() ->

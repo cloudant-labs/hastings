@@ -13,10 +13,6 @@
 -module(hastings_index_updater).
 
 
--include_lib("couch/include/couch_db.hrl").
--include("hastings.hrl").
-
-
 -export([
     update/2,
     load_docs/2
@@ -35,6 +31,10 @@
     prev_cp = os:timestamp(),
     name
 }).
+
+
+-include_lib("couch/include/couch_db.hrl").
+-include("hastings.hrl").
 
 
 update(IndexPid, Index) ->
